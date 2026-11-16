@@ -4,6 +4,12 @@ import type { CourtInput, MaintenanceInput } from './types';
 export async function listCourts(token: string) {
   return (await getApi()).listCourts(token);
 }
+export async function getCourt(token: string, id: number) {
+  return (await getApi()).getCourt(token, id);
+}
+export async function deleteCourt(token: string, id: number) {
+  return (await getApi()).deleteCourt(token, id);
+}
 export async function createCourt(token: string, input: CourtInput) {
   return (await getApi()).createCourt(token, input);
 }

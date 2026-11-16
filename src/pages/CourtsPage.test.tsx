@@ -16,13 +16,25 @@ function renderPage(session: Session, status: 'allowed' | 'denied' | 'checking' 
   return { ...view, onExpired, onRetry };
 }
 
-async function fillAndSave(user: ReturnType<typeof userEvent.setup>, name: string) {
-  await user.click(await screen.findByRole('button', { name: 'Nova quadra' }));
+type User = ReturnType<typeof userEvent.setup>;
+
+/** Preenche os campos obrigatórios da quadra (o máximo de jogadores já vem com 4). */
+async function fillCourt(user: User, name: string) {
   await user.type(screen.getByLabelText('Nome'), name);
+  await user.type(screen.getByLabelText('Endereço'), 'Setor B, perto do estacionamento');
+  await user.type(screen.getByLabelText('Área (m²)'), '260,76');
+  await user.type(screen.getByLabelText('Preço da hora (R$)'), '120,50');
+}
+
+async function fillAndSave(user: User, name: string) {
+  await user.click(await screen.findByRole('button', { name: 'Nova quadra' }));
+  await fillCourt(user, name);
   await user.selectOptions(screen.getByLabelText('Piso'), 'Saibro');
   await user.click(screen.getByLabelText('Coberta'));
   await user.click(screen.getByRole('button', { name: 'Salvar quadra' }));
 }
+
+const card = (name: string) => screen.getByRole('heading', { name }).closest('article') as HTMLElement;
 
 describe('CourtsPage', () => {
   it('admin cadastra quadra e ela aparece na lista', async () => {
@@ -34,7 +46,30 @@ describe('CourtsPage', () => {
     const card = heading.closest('article') as HTMLElement;
     expect(within(card).getByText('Saibro')).toBeInTheDocument();
     expect(within(card).getByText('Coberta')).toBeInTheDocument();
+    expect(within(card).getByText('Setor B, perto do estacionamento')).toBeInTheDocument();
+    expect(within(card).getByText(/R\$\s?120,50/)).toBeInTheDocument();
+    expect(within(card).getByText('até 4')).toBeInTheDocument();
+    expect(within(card).getByText('260,76 m²')).toBeInTheDocument();
     expect(screen.queryByLabelText('Nome')).not.toBeInTheDocument();
+  });
+
+  it('campos inválidos mostram erro em cada um e focam o primeiro', async () => {
+    const { admin } = await setupTestApi();
+    const user = userEvent.setup();
+    renderPage(admin);
+    await user.click(await screen.findByRole('button', { name: 'Nova quadra' }));
+    await user.type(screen.getByLabelText('Nome'), 'Quadra X');
+    await user.type(screen.getByLabelText('Área (m²)'), 'grande');
+    await user.clear(screen.getByLabelText('Máximo de jogadores'));
+    await user.type(screen.getByLabelText('Máximo de jogadores'), '60');
+    await user.type(screen.getByLabelText('Preço da hora (R$)'), '10,999');
+    await user.click(screen.getByRole('button', { name: 'Salvar quadra' }));
+    expect(screen.getByLabelText('Endereço')).toHaveFocus();
+    expect(screen.getByLabelText('Endereço')).toHaveAccessibleDescription(/Informe o endereço/);
+    expect(screen.getByLabelText('Área (m²)')).toHaveAccessibleDescription(/maior que zero/);
+    expect(screen.getByLabelText('Máximo de jogadores')).toHaveAccessibleDescription('Informe de 1 a 50 jogadores.');
+    expect(screen.getByLabelText('Preço da hora (R$)')).toHaveAccessibleDescription(/até 2 casas decimais/);
+    expect(screen.getByLabelText('Nome')).not.toHaveAttribute('aria-invalid');
   });
 
   it('lista as quadras existentes com piso e selo Disponível', async () => {
@@ -43,6 +78,8 @@ describe('CourtsPage', () => {
     expect(await screen.findByRole('heading', { name: 'Quadra 3' })).toBeInTheDocument();
     expect(screen.getAllByText('Disponível')).toHaveLength(3);
     expect(screen.getByText('Coberta')).toBeInTheDocument();
+    expect(within(card('Quadra 3')).getByText('Ginásio coberto')).toBeInTheDocument();
+    expect(within(card('Quadra 3')).getByText(/R\$\s?150,00/)).toBeInTheDocument();
   });
 
   it('nome vazio mostra erro no campo e foca nele', async () => {
@@ -51,14 +88,14 @@ describe('CourtsPage', () => {
     renderPage(admin);
     await user.click(await screen.findByRole('button', { name: 'Nova quadra' }));
     await user.click(screen.getByRole('button', { name: 'Salvar quadra' }));
-    expect(screen.getByText('Informe o nome da quadra.')).toBeInTheDocument();
+    expect(screen.getByText('Informe o nome da quadra, com até 120 caracteres.')).toBeInTheDocument();
     const name = screen.getByLabelText('Nome');
     expect(name).toHaveFocus();
     expect(name).toHaveAttribute('aria-invalid', 'true');
-    expect(name).toHaveAttribute('maxlength', '60');
+    expect(name).toHaveAttribute('maxlength', '120');
   });
 
-  it('admin edita o nome da quadra', async () => {
+  it('admin edita o nome e o preço da quadra', async () => {
     const { admin } = await setupTestApi();
     const user = userEvent.setup();
     renderPage(admin);
@@ -66,10 +103,16 @@ describe('CourtsPage', () => {
     await user.click(screen.getAllByRole('button', { name: /^Editar/ })[0]);
     const name = screen.getByLabelText('Nome');
     expect(name).toHaveValue('Quadra 1');
+    expect(screen.getByLabelText('Endereço')).toHaveValue('Setor A, ao lado da sede');
+    expect(screen.getByLabelText('Área (m²)')).toHaveValue('260,76');
+    expect(screen.getByLabelText('Preço da hora (R$)')).toHaveValue('90');
     await user.clear(name);
     await user.type(name, 'Quadra 1 Coberta');
+    await user.clear(screen.getByLabelText('Preço da hora (R$)'));
+    await user.type(screen.getByLabelText('Preço da hora (R$)'), '95,5');
     await user.click(screen.getByRole('button', { name: 'Salvar quadra' }));
     expect(await screen.findByRole('heading', { name: 'Quadra 1 Coberta' })).toBeInTheDocument();
+    expect(within(card('Quadra 1 Coberta')).getByText(/R\$\s?95,50/)).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Quadra 1' })).not.toBeInTheDocument();
   });
 
@@ -118,7 +161,9 @@ describe('CourtsPage', () => {
 
   it('nome com HTML aparece como texto', async () => {
     const { admin, api } = await setupTestApi();
-    await api.createCourt(admin.token, { name: '<img src=x onerror=alert(1)>', surface: 'grass', covered: false });
+    await api.createCourt(admin.token, {
+      name: '<img src=x onerror=alert(1)>', address: '<b>Setor</b>', size_m2: 100, max_players: 2, hourly_price: 0, surface: 'grass', covered: false,
+    });
     const { container } = renderPage(admin);
     expect(await screen.findByText('<img src=x onerror=alert(1)>')).toBeInTheDocument();
     expect(container.querySelector('img')).toBeNull();
@@ -129,7 +174,7 @@ describe('CourtsPage', () => {
     const user = userEvent.setup();
     renderPage(admin);
     await user.click(await screen.findByRole('button', { name: 'Nova quadra' }));
-    await user.type(screen.getByLabelText('Nome'), 'Quadra Dupla');
+    await fillCourt(user, 'Quadra Dupla');
     await user.dblClick(screen.getByRole('button', { name: 'Salvar quadra' }));
     await screen.findByRole('heading', { name: 'Quadra Dupla' });
     expect(await listCourts(admin.token)).toHaveLength(4);
@@ -238,6 +283,43 @@ describe('CourtsPage', () => {
     });
   });
 
+  describe('exclusão', () => {
+    it('pede confirmação, exclui e devolve o foco a "Nova quadra"', async () => {
+      const { admin } = await setupTestApi({ now: () => NOW });
+      const user = userEvent.setup();
+      renderPage(admin);
+      await user.click(await screen.findByRole('button', { name: 'Excluir Quadra 3' }));
+      const dialog = screen.getByRole('alertdialog', { name: 'Excluir Quadra 3?' });
+      expect(within(dialog).getByRole('button', { name: 'Manter quadra' })).toHaveFocus();
+      await user.click(within(dialog).getByRole('button', { name: 'Excluir quadra' }));
+      await waitFor(() => expect(screen.queryByRole('heading', { name: 'Quadra 3' })).not.toBeInTheDocument());
+      expect(screen.getByRole('status')).toHaveTextContent('Quadra Quadra 3 excluída.');
+      expect(screen.getByRole('button', { name: 'Nova quadra' })).toHaveFocus();
+      expect((await listCourts(admin.token)).map((court) => court.name)).toEqual(['Quadra 1', 'Quadra 2']);
+    });
+
+    it('"Manter quadra" fecha a confirmação e volta o foco ao botão', async () => {
+      const { admin } = await setupTestApi({ now: () => NOW });
+      const user = userEvent.setup();
+      renderPage(admin);
+      await user.click(await screen.findByRole('button', { name: 'Excluir Quadra 2' }));
+      await user.click(screen.getByRole('button', { name: 'Manter quadra' }));
+      expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Excluir Quadra 2' })).toHaveFocus();
+    });
+
+    it('quadra com reserva futura mostra o motivo e continua na lista', async () => {
+      const { admin } = await setupTestApi({ now: () => NOW });
+      const user = userEvent.setup();
+      renderPage(admin);
+      await user.click(await screen.findByRole('button', { name: 'Excluir Quadra 1' }));
+      await user.click(screen.getByRole('button', { name: 'Excluir quadra' }));
+      const dialog = screen.getByRole('alertdialog');
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('A quadra tem reservas ou pedidos na fila');
+      expect(screen.getByRole('heading', { name: 'Quadra 1' })).toBeInTheDocument();
+    });
+  });
+
   describe('acessibilidade dos cartões', () => {
     it('botões têm nomes distintos por quadra', async () => {
       const { admin } = await setupTestApi({ now: () => NOW });
@@ -245,6 +327,7 @@ describe('CourtsPage', () => {
       await screen.findByRole('heading', { name: 'Quadra 1' });
       expect(screen.getByRole('button', { name: 'Editar Quadra 2' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Marcar manutenção em Quadra 3' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Excluir Quadra 1' })).toBeInTheDocument();
     });
 
     it('foco vai ao primeiro campo ao abrir e volta ao botão ao cancelar ou salvar', async () => {
@@ -263,7 +346,7 @@ describe('CourtsPage', () => {
 
       await user.click(screen.getByRole('button', { name: 'Nova quadra' }));
       expect(screen.getByLabelText('Nome')).toHaveFocus();
-      await user.type(screen.getByLabelText('Nome'), 'Quadra Foco');
+      await fillCourt(user, 'Quadra Foco');
       await user.click(screen.getByRole('button', { name: 'Salvar quadra' }));
       expect(await screen.findByRole('status')).toHaveTextContent('Quadra salva.');
       expect(screen.getByRole('button', { name: 'Nova quadra' })).toHaveFocus();

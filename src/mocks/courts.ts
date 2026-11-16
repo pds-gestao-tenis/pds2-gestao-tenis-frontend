@@ -1,9 +1,9 @@
 import { ApiError } from '../api/error';
-import type { ApiServices, Court, CourtInput, MaintenanceInput, Surface } from '../api/types';
+import type { ApiServices, Court, CourtInput, MaintenanceInput } from '../api/types';
+import { courtErrors } from '../lib/court-rules';
 import type { MockContext } from './context';
 
-const SURFACES: Surface[] = ['clay', 'hard', 'grass', 'synthetic'];
-const KEYS = ['name', 'surface', 'covered'];
+const KEYS = ['name', 'address', 'size_m2', 'max_players', 'hourly_price', 'surface', 'covered'];
 const MAINTENANCE_KEYS = ['starts_at', 'ends_at', 'reason', 'cancel_bookings'];
 const HOUR = 3600000;
 
@@ -13,26 +13,21 @@ function invalid(field: string, message: string): never {
 
 const copy = (court: Court): Court => ({ ...court, maintenance: court.maintenance.map((item) => ({ ...item })) });
 
-export function courtHandlers(ctx: MockContext): Pick<ApiServices, 'listCourts' | 'createCourt' | 'updateCourt' | 'addMaintenance' | 'removeMaintenance'> {
+type CourtServices = 'listCourts' | 'getCourt' | 'createCourt' | 'updateCourt' | 'deleteCourt' | 'addMaintenance' | 'removeMaintenance';
+
+export function courtHandlers(ctx: MockContext): Pick<ApiServices, CourtServices> {
+  // Mesmas regras do backend: o modo mock responde como a API real.
   function validate(input: Partial<CourtInput>, partial: boolean): Partial<CourtInput> {
     for (const key of Object.keys(input)) {
       if (!KEYS.includes(key)) invalid(key, 'Este campo não pode ser informado.');
     }
-    const values: Partial<CourtInput> = {};
-    if (!partial || 'name' in input) {
-      const name = typeof input.name === 'string' ? input.name.trim() : '';
-      const size = Array.from(name).length;
-      if (size < 1 || size > 60) invalid('name', 'Informe um nome de 1 a 60 caracteres.');
-      values.name = name;
-    }
-    if (!partial || 'surface' in input) {
-      if (!SURFACES.includes(input.surface as Surface)) invalid('surface', 'Escolha um piso válido.');
-      values.surface = input.surface;
-    }
-    if (!partial || 'covered' in input) {
-      if (typeof input.covered !== 'boolean') invalid('covered', 'Informe se a quadra é coberta.');
-      values.covered = input.covered;
-    }
+    if (partial && Object.keys(input).length === 0) invalid('body', 'Informe ao menos um campo para atualizar.');
+    const errors = courtErrors(input, partial);
+    const fields = Object.entries(errors).map(([field, message]) => [field, [message]]);
+    if (fields.length > 0) throw new ApiError('Os dados informados são inválidos.', 422, Object.fromEntries(fields));
+    const values: Partial<CourtInput> = { ...input };
+    if (values.name !== undefined) values.name = values.name.trim();
+    if (values.address !== undefined) values.address = values.address.trim();
     return values;
   }
 
@@ -55,14 +50,33 @@ export function courtHandlers(ctx: MockContext): Pick<ApiServices, 'listCourts' 
       ctx.authenticate(token);
       return ctx.db.courts.map(copy);
     },
+    async getCourt(token, id) {
+      await ctx.wait();
+      ctx.authenticate(token);
+      return copy(findCourt(id));
+    },
+    async deleteCourt(token, id) {
+      await ctx.wait();
+      ctx.authenticate(token, true);
+      const court = findCourt(id);
+      const now = ctx.now();
+      const pending = ctx.db.bookings.some((item) => item.court_id === court.id && item.status === 'active' && Date.parse(item.ends_at) > now)
+        || ctx.db.waitlist.some((entry) => entry.court_id === court.id && Date.parse(entry.starts_at) + HOUR > now);
+      if (pending) {
+        throw new ApiError('A quadra tem reservas ou pedidos na fila que ainda não terminaram. Cancele-os antes de excluir.', 409);
+      }
+      // Como no backend, o histórico de reservas da quadra vai junto.
+      ctx.db.courts = ctx.db.courts.filter((item) => item.id !== court.id);
+      ctx.db.bookings = ctx.db.bookings.filter((item) => item.court_id !== court.id);
+      ctx.db.waitlist = ctx.db.waitlist.filter((entry) => entry.court_id !== court.id);
+      ctx.persist();
+    },
     async createCourt(token, input) {
       await ctx.wait();
       ctx.authenticate(token, true);
       const values = validate(input, false);
       uniqueName(values.name);
-      const court: Court = {
-        id: ctx.db.nextId++, name: values.name!, surface: values.surface!, covered: values.covered!, maintenance: [],
-      };
+      const court: Court = { id: ctx.db.nextId++, ...(values as CourtInput), maintenance: [] };
       ctx.db.courts.push(court);
       ctx.persist();
       return copy(court);

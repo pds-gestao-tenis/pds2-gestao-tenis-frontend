@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { listCourts, removeMaintenance } from '../api/courts';
+import { deleteCourt, listCourts, removeMaintenance } from '../api/courts';
 import { errorMessage, isExpired } from '../api/error';
 import type { Court, MaintenanceWindow, Session } from '../api/types';
 import { AccessStatus } from '../components/AccessStatus';
+import { ConfirmAction } from '../components/ConfirmAction';
 import { CourtCard } from '../components/CourtCard';
 import { CourtForm } from '../components/CourtForm';
 import { LoadError, Loading } from '../components/LoadStatus';
@@ -18,6 +19,7 @@ function CourtManager({ session, now = Date.now, onExpired }: Pick<Props, 'sessi
   const { state, reload, setData } = useLoad('courts', () => listCourts(session.token), onExpired);
   const [editing, setEditing] = useState<Editing>(null);
   const [maintaining, setMaintaining] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState<number | null>(null);
   const [notice, setNotice] = useState('');
   const [actionError, setActionError] = useState('');
   const [removing, setRemoving] = useState(false);
@@ -25,7 +27,7 @@ function CourtManager({ session, now = Date.now, onExpired }: Pick<Props, 'sessi
   const opener = useRef<string | null>(null);
 
   // Ao fechar um formulário, o foco volta ao botão que o abriu (que pode ter sido remontado).
-  const closed = editing === null && maintaining === null;
+  const closed = editing === null && maintaining === null && deleting === null;
   useEffect(() => {
     if (closed && opener.current) {
       root.current?.querySelector<HTMLElement>(`[data-opener="${opener.current}"]`)?.focus();
@@ -37,16 +39,32 @@ function CourtManager({ session, now = Date.now, onExpired }: Pick<Props, 'sessi
   if (state.status === 'error') return <LoadError message={state.message} onRetry={reload} />;
 
   const courts = state.data;
-  function open(key: string, form: { editing?: Editing; maintaining?: number }) {
+  function open(key: string, form: { editing?: Editing; maintaining?: number; deleting?: number }) {
     opener.current = key;
     setNotice('');
     setActionError('');
     setEditing(form.editing ?? null);
     setMaintaining(form.maintaining ?? null);
+    setDeleting(form.deleting ?? null);
   }
   function close() {
     setEditing(null);
     setMaintaining(null);
+    setDeleting(null);
+  }
+  async function handleDelete(court: Court) {
+    try {
+      await deleteCourt(session.token, court.id);
+    } catch (error) {
+      if (isExpired(error)) return onExpired();
+      throw error; // O ConfirmAction mostra a mensagem (ex.: reservas futuras) e continua aberto.
+    }
+    setData(courts.filter((item) => item.id !== court.id));
+    if (editing !== 'new' && editing?.id === court.id) setEditing(null);
+    // O cartão sumiu com o botão que abriu a confirmação: o foco vai para "Nova quadra".
+    opener.current = 'new';
+    setNotice(`Quadra ${court.name} excluída.`);
+    setDeleting(null);
   }
   function replaceCourt(saved: Court) {
     setData(courts.some((item) => item.id === saved.id)
@@ -102,7 +120,14 @@ function CourtManager({ session, now = Date.now, onExpired }: Pick<Props, 'sessi
               key={court.id} court={court} now={now()} removing={removing}
               onRemoveMaintenance={(item) => handleRemove(court, item)}
             >
-              {maintaining === court.id ? (
+              {deleting === court.id ? (
+                <ConfirmAction
+                  title={`Excluir ${court.name}?`}
+                  description="A quadra e o histórico de reservas dela serão apagados. Isso não pode ser desfeito."
+                  confirmLabel="Excluir quadra" keepLabel="Manter quadra" danger
+                  onConfirm={() => handleDelete(court)} onKeep={close}
+                />
+              ) : maintaining === court.id ? (
                 <MaintenanceForm
                   court={court} token={session.token}
                   onSaved={handleMaintenanceSaved} onCancel={close} onExpired={onExpired}
@@ -121,6 +146,12 @@ function CourtManager({ session, now = Date.now, onExpired }: Pick<Props, 'sessi
                     onClick={() => open(`maint-${court.id}`, { maintaining: court.id })}
                   >
                     Marcar manutenção
+                  </button>
+                  <button
+                    type="button" className="button button--secondary" data-opener={`delete-${court.id}`}
+                    aria-label={`Excluir ${court.name}`} onClick={() => open(`delete-${court.id}`, { deleting: court.id })}
+                  >
+                    Excluir
                   </button>
                 </div>
               )}
@@ -161,7 +192,7 @@ export function CourtsPage({ session, access, now, onRetry, onExpired }: Props) 
       <div className="page-heading">
         <p className="eyebrow">Administração</p>
         <h1>Quadras</h1>
-        <p>Cadastre e organize as quadras do clube.</p>
+        <p>Cadastre e organize as quadras do clube: endereço, capacidade, preço da hora e manutenções.</p>
       </div>
       {content}
       <a className="text-link" href={routePaths.home}>Voltar ao início <span aria-hidden="true">→</span></a>

@@ -1,6 +1,6 @@
 export type Route =
   | 'home' | 'account' | 'members' | 'courts' | 'schedule' | 'reschedule'
-  | 'bookings' | 'booking' | 'login' | 'not-found';
+  | 'bookings' | 'booking' | 'login' | 'register' | 'not-found';
 
 export const routePaths = {
   home: '#/inicio',
@@ -10,6 +10,7 @@ export const routePaths = {
   schedule: '#/agenda',
   bookings: '#/reservas',
   login: '#/entrar',
+  register: '#/criar-conta',
 } as const;
 
 const bookingRoute = /^#\/reservas\/([1-9]\d{0,8})$/;

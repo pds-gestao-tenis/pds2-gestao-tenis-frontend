@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { setupTestApi } from '../test/api';
 
-const valid = { name: 'Quadra Central', surface: 'clay', covered: true } as const;
+const valid = {
+  name: 'Quadra Central', address: 'Setor B', size_m2: 260.76, max_players: 4, hourly_price: 120.5, surface: 'clay', covered: true,
+} as const;
 
 describe('courtHandlers', () => {
   it('qualquer usuário autenticado lista as quadras', async () => {
@@ -37,11 +39,56 @@ describe('courtHandlers', () => {
     });
   });
 
-  it('nome vazio ou com mais de 60 caracteres → 422', async () => {
+  it('nome vazio ou com mais de 120 caracteres → 422', async () => {
     const { api, admin } = await setupTestApi();
     await expect(api.createCourt(admin.token, { ...valid, name: '   ' })).rejects.toMatchObject({ status: 422 });
-    await expect(api.createCourt(admin.token, { ...valid, name: 'a'.repeat(61) })).rejects.toMatchObject({ status: 422 });
-    await expect(api.createCourt(admin.token, { ...valid, name: 'a'.repeat(60) })).resolves.toMatchObject({ covered: true });
+    await expect(api.createCourt(admin.token, { ...valid, name: 'a'.repeat(121) })).rejects.toMatchObject({ status: 422 });
+    await expect(api.createCourt(admin.token, { ...valid, name: 'a'.repeat(120) })).resolves.toMatchObject({ covered: true });
+  });
+
+  it.each([
+    ['address', ' '],
+    ['address', 'a'.repeat(256)],
+    ['size_m2', 0],
+    ['size_m2', 10.555],
+    ['max_players', 0],
+    ['max_players', 51],
+    ['max_players', 2.5],
+    ['hourly_price', -1],
+    ['hourly_price', 9.999],
+    ['hourly_price', '90'],
+  ])('%s = %j → 422 no campo', async (field, value) => {
+    const { api, admin } = await setupTestApi();
+    await expect(api.createCourt(admin.token, { ...valid, [field]: value } as never)).rejects.toMatchObject({
+      status: 422, fieldErrors: { [field]: [expect.any(String)] },
+    });
+  });
+
+  it('consulta uma quadra; 404 para inexistente', async () => {
+    const { api, player } = await setupTestApi();
+    await expect(api.getCourt(player.token, 2)).resolves.toMatchObject({ id: 2, name: 'Quadra 2', hourly_price: 110 });
+    await expect(api.getCourt(player.token, 999)).rejects.toMatchObject({ status: 404 });
+  });
+
+  describe('exclusão', () => {
+    const NOW = Date.parse('2026-11-09T12:00:00-03:00');
+
+    it('só admin exclui', async () => {
+      const { api, player } = await setupTestApi({ now: () => NOW });
+      await expect(api.deleteCourt(player.token, 3)).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('quadra com reserva futura → 409; sem reservas futuras some da lista com o histórico', async () => {
+      const { api, admin, ctx } = await setupTestApi({ now: () => NOW });
+      await expect(api.deleteCourt(admin.token, 1)).rejects.toMatchObject({ status: 409 });
+      await expect(api.deleteCourt(admin.token, 3)).resolves.toBeUndefined();
+      expect((await api.listCourts(admin.token)).map((court) => court.id)).toEqual([1, 2]);
+      // Quadra 2 só tem reserva futura (id 6); ao cancelá-la, a passada (id 7) não impede a exclusão.
+      ctx.db.bookings.find((item) => item.id === 6)!.status = 'cancelled';
+      await api.deleteCourt(admin.token, 2);
+      expect(ctx.db.bookings.some((item) => item.court_id === 2)).toBe(false);
+      await expect(api.deleteCourt(admin.token, 2)).rejects.toMatchObject({ status: 404 });
+    });
   });
 
   it('piso inválido → 422', async () => {
@@ -53,7 +100,7 @@ describe('courtHandlers', () => {
   it('cria quadra sem manutenção e ela aparece na lista', async () => {
     const { api, admin } = await setupTestApi();
     const court = await api.createCourt(admin.token, { ...valid, name: '  Quadra Central ' });
-    expect(court).toMatchObject({ name: 'Quadra Central', surface: 'clay', covered: true, maintenance: [] });
+    expect(court).toMatchObject({ ...valid, maintenance: [] });
     expect((await api.listCourts(admin.token)).map((item) => item.id)).toContain(court.id);
   });
 

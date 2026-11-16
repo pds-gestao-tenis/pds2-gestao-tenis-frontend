@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { Court, MaintenanceWindow, Surface } from '../api/types';
 import { formatClubDateTime } from '../lib/club-time';
+import { formatArea, formatPrice } from '../lib/court-rules';
 
 export const SURFACE_LABELS: Record<Surface, string> = {
   clay: 'Saibro',
@@ -55,6 +56,12 @@ export function CourtCard({ court, now, removing, onRemoveMaintenance, children 
         <span>{SURFACE_LABELS[court.surface]}</span>
         <span>{court.covered ? 'Coberta' : 'Descoberta'}</span>
       </p>
+      <p className="court-card-address">{court.address}</p>
+      <dl className="court-card-facts">
+        <div><dt>Hora</dt><dd>{formatPrice(court.hourly_price)}</dd></div>
+        <div><dt>Jogadores</dt><dd>até {court.max_players}</dd></div>
+        <div><dt>Área</dt><dd>{formatArea(court.size_m2)}</dd></div>
+      </dl>
       {current && <p className="court-card-meta">Em manutenção até {formatClubDateTime(current.ends_at)}</p>}
       {upcoming.length > 0 && (
         <ul className="maintenance-list">

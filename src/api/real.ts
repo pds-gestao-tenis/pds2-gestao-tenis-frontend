@@ -1,5 +1,9 @@
+import { BOOKING_MINUTES, toBooking, toWaitlistEntry, type ApiBooking } from './booking-adapter';
+import { ApiError } from './error';
 import { pathId, request } from './http';
-import type { ApiServices, Booking, Court, CourtInput, Member, Player, Schedule, User, WaitlistEntry } from './types';
+import type { ApiServices, Court, CourtInput, Member, Player, Schedule, User } from './types';
+
+const NO_OFFERS = 'A fila de espera confirma a reserva automaticamente quando o horário libera.';
 
 const authorization = (token: string) => ({ Authorization: `Bearer ${token}` });
 const json = (method: string, input: unknown, token?: string): RequestInit => ({
@@ -8,8 +12,27 @@ const json = (method: string, input: unknown, token?: string): RequestInit => ({
   body: JSON.stringify(input),
 });
 const send = (method: string, token: string): RequestInit => ({ method, headers: authorization(token) });
+const COURT_FIELDS = ['name', 'address', 'size_m2', 'max_players', 'hourly_price', 'surface', 'covered'] as const;
+// Copia só os campos do contrato: nada além dele chega ao servidor.
+function courtBody(input: Partial<CourtInput>) {
+  const body: Record<string, unknown> = {};
+  for (const key of COURT_FIELDS) {
+    if (input[key] !== undefined) body[key] = input[key];
+  }
+  return body;
+}
 async function unwrap<T>(path: string, init: RequestInit): Promise<T> {
   return (await request<{ data: T }>(path, init)).data;
+}
+/** Todas as páginas de /bookings com os filtros dados (até 100 por página). */
+async function allBookings(token: string, filters: Record<string, string>): Promise<ApiBooking[]> {
+  const items: ApiBooking[] = [];
+  for (let page = 1; ; page += 1) {
+    const params = new URLSearchParams({ ...filters, page: String(page), page_size: '100' });
+    const result = await request<{ data: ApiBooking[]; meta?: { total_pages: number } }>(`/bookings?${params}`, send('GET', token));
+    if (Array.isArray(result.data)) items.push(...result.data);
+    if (page >= (result.meta?.total_pages ?? 1)) return items;
+  }
 }
 
 export const realApi: ApiServices = {
@@ -45,16 +68,21 @@ export const realApi: ApiServices = {
   deleteMember: (token, id) => request(`/members/${id}`, { method: 'DELETE', headers: authorization(token) }),
 
   // Corpos montados campo a campo: nada além do contrato chega ao servidor.
-  listCourts: async (token) => unwrap<Court[]>('/courts', send('GET', token)),
-  createCourt: async (token, input) =>
-    unwrap<Court>('/courts', json('POST', { name: input.name, surface: input.surface, covered: input.covered }, token)),
-  async updateCourt(token, id, input) {
-    const body: Partial<CourtInput> = {};
-    if (input.name !== undefined) body.name = input.name;
-    if (input.surface !== undefined) body.surface = input.surface;
-    if (input.covered !== undefined) body.covered = input.covered;
-    return unwrap<Court>(`/courts/${pathId(id)}`, json('PATCH', body, token));
+  // A API pagina (até 100 por página); a tela precisa de todas as quadras.
+  async listCourts(token) {
+    const courts: Court[] = [];
+    for (let page = 1; ; page += 1) {
+      const result = await request<{ data: Court[]; meta?: { total_pages: number } }>(
+        `/courts?${new URLSearchParams({ page: String(page), page_size: '100' })}`, send('GET', token),
+      );
+      if (Array.isArray(result.data)) courts.push(...result.data);
+      if (page >= (result.meta?.total_pages ?? 1)) return courts;
+    }
   },
+  getCourt: async (token, id) => unwrap<Court>(`/courts/${pathId(id)}`, send('GET', token)),
+  createCourt: async (token, input) => unwrap<Court>('/courts', json('POST', courtBody(input), token)),
+  updateCourt: async (token, id, input) => unwrap<Court>(`/courts/${pathId(id)}`, json('PATCH', courtBody(input), token)),
+  deleteCourt: (token, id) => request<void>(`/courts/${pathId(id)}`, send('DELETE', token)),
   async addMaintenance(token, courtId, input) {
     const body = { starts_at: input.starts_at, ends_at: input.ends_at, reason: input.reason,
       ...(input.cancel_bookings !== undefined ? { cancel_bookings: input.cancel_bookings } : {}) };
@@ -64,20 +92,42 @@ export const realApi: ApiServices = {
     unwrap<Court>(`/courts/${pathId(courtId)}/maintenance/${pathId(maintenanceId)}`, send('DELETE', token)),
   getSchedule: async (token, date) => unwrap<Schedule>(`/schedule?${new URLSearchParams({ date })}`, send('GET', token)),
   searchPlayers: async (token, q) => unwrap<Player[]>(`/players?${new URLSearchParams({ q })}`, send('GET', token)),
-  createBooking: async (token, input) => unwrap<Booking>('/bookings', json('POST', {
-    court_id: input.court_id, starts_at: input.starts_at, participant_ids: input.participant_ids,
-  }, token)),
-  listBookings: async (token, scope) => unwrap<Booking[]>(`/bookings?${new URLSearchParams({ scope })}`, send('GET', token)),
-  getBooking: async (token, id) => unwrap<Booking>(`/bookings/${pathId(id)}`, send('GET', token)),
-  cancelBooking: async (token, id) => unwrap<Booking>(`/bookings/${pathId(id)}/cancel`, send('POST', token)),
-  rescheduleBooking: async (token, id, input) =>
-    unwrap<Booking>(`/bookings/${pathId(id)}`, json('PATCH', { court_id: input.court_id, starts_at: input.starts_at }, token)),
+  // A agenda do backend tem outro formato; booking-adapter.ts traduz para o contrato das telas.
+  createBooking: async (token, input) => toBooking(await unwrap<ApiBooking>('/bookings', json('POST', {
+    court_id: input.court_id, starts_at: input.starts_at, duration_minutes: BOOKING_MINUTES, player_ids: input.participant_ids,
+  }, token)), Date.now()),
+  async listBookings(token, scope) {
+    const items = await allBookings(token, { scope, only_mine: 'true' });
+    return items.map((item) => toBooking(item, Date.now()));
+  },
+  getBooking: async (token, id) => toBooking(await unwrap<ApiBooking>(`/bookings/${pathId(id)}`, send('GET', token)), Date.now()),
+  cancelBooking: async (token, id) =>
+    toBooking(await unwrap<ApiBooking>(`/bookings/${pathId(id)}/cancel`, send('POST', token)), Date.now()),
+  rescheduleBooking: async (token, id, input) => toBooking(await unwrap<ApiBooking>(
+    `/bookings/${pathId(id)}`, json('PATCH', { court_id: input.court_id, starts_at: input.starts_at }, token),
+  ), Date.now()),
   respondAttendance: async (token, id, response) =>
-    unwrap<Booking>(`/bookings/${pathId(id)}/attendance`, json('PUT', { response }, token)),
-  listWaitlist: async (token) => unwrap<WaitlistEntry[]>('/waitlist', send('GET', token)),
-  joinWaitlist: async (token, input) =>
-    unwrap<WaitlistEntry>('/waitlist', json('POST', { court_id: input.court_id, starts_at: input.starts_at }, token)),
-  leaveWaitlist: async (token, id) => request<void>(`/waitlist/${pathId(id)}`, send('DELETE', token)),
-  acceptOffer: async (token, id) => unwrap<Booking>(`/waitlist/${pathId(id)}/accept`, send('POST', token)),
-  declineOffer: async (token, id) => request<void>(`/waitlist/${pathId(id)}/decline`, send('POST', token)),
+    toBooking(await unwrap<ApiBooking>(`/bookings/${pathId(id)}/attendance`, json('PUT', { response }, token)), Date.now()),
+  // A fila são as reservas "waitlisted" que a própria conta pediu e que ainda não começaram.
+  async listWaitlist(token) {
+    const items = await allBookings(token, { status: 'waitlisted', only_mine: 'true', starts_from: new Date().toISOString() });
+    return items.filter((item) => item.my_role === 'organizer').map(toWaitlistEntry);
+  },
+  async joinWaitlist(token, input) {
+    const item = await unwrap<ApiBooking>('/bookings', json('POST', {
+      court_id: input.court_id, starts_at: input.starts_at, duration_minutes: BOOKING_MINUTES, player_ids: [], join_waitlist: true,
+    }, token));
+    // O horário liberou entre a agenda e o clique: o backend já confirmou a reserva.
+    if (item.status === 'confirmed') {
+      throw new ApiError('O horário ficou livre e a reserva foi confirmada para você.', 409);
+    }
+    return toWaitlistEntry(item);
+  },
+  // Sair da fila é cancelar o pedido; o histórico fica no backend.
+  async leaveWaitlist(token, id) {
+    await request<unknown>(`/bookings/${pathId(id)}/cancel`, send('POST', token));
+  },
+  // Sem ofertas no backend: a fila confirma sozinha. Respondem como oferta encerrada (409).
+  acceptOffer: async () => { throw new ApiError(NO_OFFERS, 409); },
+  declineOffer: async () => { throw new ApiError(NO_OFFERS, 409); },
 };

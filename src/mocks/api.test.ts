@@ -16,13 +16,15 @@ const v1Data = JSON.stringify({
   nextMemberId: 2,
 });
 
-describe('createMockApi v2', () => {
-  it('usa a chave de armazenamento v2', () => {
-    expect(MOCK_DATA_KEY).toBe('clube-tenis.mock-data.v2');
+describe('createMockApi v3', () => {
+  it('usa a chave de armazenamento v3', () => {
+    expect(MOCK_DATA_KEY).toBe('clube-tenis.mock-data.v3');
   });
 
-  it('ignora dados v1 salvos e usa as fixtures v2', async () => {
-    const storage = memoryStorage({ 'clube-tenis.mock-data.v1': v1Data, 'clube-tenis.mock-data.v2': v1Data });
+  it('ignora dados de versões antigas e usa as fixtures v3', async () => {
+    const storage = memoryStorage({
+      'clube-tenis.mock-data.v1': v1Data, 'clube-tenis.mock-data.v2': v1Data, 'clube-tenis.mock-data.v3': v1Data,
+    });
     const api = createMockApi({ delayMs: 0, storage });
     const admin = await api.login('admin@clube.example', DEMO_PASSWORD);
     const courts = await api.listCourts(admin.token);

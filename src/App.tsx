@@ -1,11 +1,12 @@
-import { useEffect, useTransition, type ReactNode } from 'react';
-import type { Session } from './api/auth';
+import { useEffect, useState, useTransition, type ReactNode } from 'react';
+import type { Session, User } from './api/auth';
 import { USE_MOCK_API } from './api/config';
 import { AppLayout } from './components/AppLayout';
 import { BallMark, CourtBackdrop } from './components/CourtBackdrop';
 import { Loading } from './components/LoadStatus';
 import { LoginForm } from './components/LoginForm';
 import { MockNotice } from './components/MockNotice';
+import { RegisterForm } from './components/RegisterForm';
 import { useMemberAccess } from './hooks/useMemberAccess';
 import { useRoute } from './hooks/useRoute';
 import { useSession } from './hooks/useSession';
@@ -35,7 +36,7 @@ const mockNotice = import.meta.env.DEV && USE_MOCK_API ? <MockNotice /> : undefi
 const TITLES: Record<Route, string> = {
   home: 'Início', account: 'Minha conta', members: 'Membros',
   courts: 'Quadras', schedule: 'Agenda', reschedule: 'Remarcar', bookings: 'Minhas reservas',
-  booking: 'Reserva', login: 'Entrar', 'not-found': 'Página não encontrada',
+  booking: 'Reserva', login: 'Entrar', register: 'Criar conta', 'not-found': 'Página não encontrada',
 };
 
 function ClubApp({ session, route, id, onLogout, onExpired }: {
@@ -86,22 +87,31 @@ export function App() {
   const auth = useSession();
   const { route, id } = useRoute();
   const [leaving, startLeaving] = useTransition();
+  // E-mail da conta recém-criada: o cadastro não faz login, então ele vai pré-preenchido para o login.
+  const [registered, setRegistered] = useState<User | null>(null);
 
   const authenticated = auth.state.status === 'authenticated';
   useEffect(() => {
-    if (authenticated && (route === 'login' || !window.location.hash)) navigate('home', true);
+    if (authenticated && (route === 'login' || route === 'register' || !window.location.hash)) navigate('home', true);
   }, [route, authenticated]);
 
-  const title = authenticated ? TITLES[route] : auth.state.status === 'anonymous' ? 'Entrar' : 'Verificar sessão';
+  const anonymousTitle = route === 'register' ? 'Criar conta' : 'Entrar';
+  const title = authenticated ? TITLES[route] : auth.state.status === 'anonymous' ? anonymousTitle : 'Verificar sessão';
   useEffect(() => {
     document.title = `${title} · Clube de Tênis`;
   }, [title]);
 
   function handleLogin(session: Session) {
     auth.signIn(session);
-    if (route === 'login' || route === 'not-found' || !window.location.hash) {
+    setRegistered(null);
+    if (route === 'login' || route === 'register' || route === 'not-found' || !window.location.hash) {
       navigate('home', true);
     }
+  }
+
+  function handleRegistered(user: User) {
+    setRegistered(user);
+    navigate('login', true);
   }
 
   async function handleLogout() {
@@ -136,7 +146,16 @@ export function App() {
       </section>
     );
   } else if (auth.state.status === 'anonymous') {
-    content = <LoginForm onLogin={handleLogin} notice={auth.state.notice} />;
+    content = route === 'register' ? (
+      <RegisterForm onRegistered={handleRegistered} />
+    ) : (
+      <LoginForm
+        key={registered?.id ?? 'login'}
+        onLogin={handleLogin}
+        initialEmail={registered?.email}
+        notice={registered ? 'Conta criada. Entre com seu e-mail e senha.' : auth.state.notice}
+      />
+    );
   }
 
   return (

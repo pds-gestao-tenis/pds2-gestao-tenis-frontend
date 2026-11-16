@@ -5,7 +5,8 @@ import type { MockBooking, MockWaitlistEntry } from './context';
 export const DEMO_PASSWORD = 'SenhaSegura123';
 export const DEMO_ADMIN_EMAIL = 'admin@clube.example';
 export const DEMO_USER_EMAIL = 'usuario@clube.example';
-export const MOCK_DATA_KEY = 'clube-tenis.mock-data.v2';
+// v3: quadras com endereço, área, jogadores e preço. Dados salvos de versões antigas são descartados.
+export const MOCK_DATA_KEY = 'clube-tenis.mock-data.v3';
 const created_at = '2026-01-01T12:00:00.000Z';
 
 // As permissões pertencem ao simulador; não fazem parte de UserResponse da API atual.
@@ -44,11 +45,12 @@ export function initialClubData(now: number): ClubData {
     id, court_id, starts_at: iso(start), ends_at: iso(start + 3600000), status: 'active', organizer_id,
     participants: [{ user_id: organizer_id, attendance: 'confirmed' }, ...invited.map((user_id) => ({ user_id, attendance: 'pending' as const }))],
   });
+  const details = (address: string, hourly_price: number) => ({ address, size_m2: 260.76, max_players: 4, hourly_price });
   return {
     courts: [
-      { id: 1, name: 'Quadra 1', surface: 'hard', covered: false, maintenance: [] },
-      { id: 2, name: 'Quadra 2', surface: 'clay', covered: false, maintenance: [] },
-      { id: 3, name: 'Quadra 3', surface: 'hard', covered: true, maintenance: [{
+      { id: 1, name: 'Quadra 1', surface: 'hard', covered: false, ...details('Setor A, ao lado da sede', 90), maintenance: [] },
+      { id: 2, name: 'Quadra 2', surface: 'clay', covered: false, ...details('Setor A, fundos', 110), maintenance: [] },
+      { id: 3, name: 'Quadra 3', surface: 'hard', covered: true, ...details('Ginásio coberto', 150), maintenance: [{
         id: 4, starts_at: iso(clubInstant(now, 0, '17:00')), ends_at: iso(clubInstant(now, 0, '19:00')), reason: 'Troca da rede',
       }] },
     ],

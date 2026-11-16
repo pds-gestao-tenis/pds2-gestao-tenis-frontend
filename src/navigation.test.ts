@@ -13,6 +13,8 @@ describe('resolveRoute', () => {
     ['#/reservas', 'bookings'],
     ['#/reservas/12', 'booking'],
     ['#/agenda/remarcar/12', 'reschedule'],
+    ['#/entrar', 'login'],
+    ['#/criar-conta', 'register'],
     ['#/reservas/abc', 'not-found'],
     ['#/reservas/0', 'not-found'],
     ['#/reservas/-1', 'not-found'],

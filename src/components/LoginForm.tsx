@@ -1,5 +1,6 @@
 import { useId, useRef, useState, useTransition, type FormEvent } from 'react';
 import { ApiError, login, type Session } from '../api/auth';
+import { routePaths } from '../navigation';
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -16,14 +17,15 @@ function validate(email: string, password: string): FieldErrors {
 type Props = {
   onLogin: (session: Session) => void;
   notice?: string;
+  initialEmail?: string;
 };
 
-export function LoginForm({ onLogin, notice }: Props) {
+export function LoginForm({ onLogin, notice, initialEmail = '' }: Props) {
   const id = useId();
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -154,6 +156,10 @@ export function LoginForm({ onLogin, notice }: Props) {
           'Entrar'
         )}
       </button>
+
+      <p className="card-switch">
+        Ainda não tem conta? <a className="text-link" href={routePaths.register}>Criar conta</a>
+      </p>
 
       <p className="card-help">
         Não consegue entrar?<br />

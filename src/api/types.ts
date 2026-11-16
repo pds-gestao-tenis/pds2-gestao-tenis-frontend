@@ -26,8 +26,21 @@ export type MemberList = {
 
 export type Surface = 'clay' | 'hard' | 'grass' | 'synthetic';
 export type MaintenanceWindow = { id: number; starts_at: string; ends_at: string; reason: string };
-export type Court = { id: number; name: string; surface: Surface; covered: boolean; maintenance: MaintenanceWindow[] };
-export type CourtInput = { name: string; surface: Surface; covered: boolean };
+export type Court = {
+  id: number;
+  name: string;
+  address: string;
+  /** Área em m². */
+  size_m2: number;
+  /** Máximo de jogadores por partida, contando quem reserva. */
+  max_players: number;
+  /** Preço da hora, em reais. */
+  hourly_price: number;
+  surface: Surface;
+  covered: boolean;
+  maintenance: MaintenanceWindow[];
+};
+export type CourtInput = Omit<Court, 'id' | 'maintenance'>;
 export type MaintenanceInput = { starts_at: string; ends_at: string; reason: string; cancel_bookings?: boolean };
 export type Player = { id: number; name: string };
 export type SlotStatus = 'free' | 'booked' | 'mine' | 'maintenance';
@@ -76,8 +89,10 @@ export interface ApiServices {
   updateMember(token: string, id: number, input: UpdateMemberInput): Promise<Member>;
   deleteMember(token: string, id: number): Promise<void>;
   listCourts(token: string): Promise<Court[]>;
+  getCourt(token: string, id: number): Promise<Court>;
   createCourt(token: string, input: CourtInput): Promise<Court>;
   updateCourt(token: string, id: number, input: Partial<CourtInput>): Promise<Court>;
+  deleteCourt(token: string, id: number): Promise<void>;
   addMaintenance(token: string, courtId: number, input: MaintenanceInput): Promise<Court>;
   removeMaintenance(token: string, courtId: number, maintenanceId: number): Promise<Court>;
   getSchedule(token: string, date: string): Promise<Schedule>;
