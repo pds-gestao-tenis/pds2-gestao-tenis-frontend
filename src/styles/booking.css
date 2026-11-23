@@ -947,3 +947,12 @@
 .booking-actions .cancel-booking:has(.confirm-action) {
   flex-basis: 100%;
 }
+
+/* Convites pendentes no Início. */
+.pending-invites {
+  margin-bottom: 2rem;
+}
+
+.pending-invites .section-heading .text-link {
+  margin: 0;
+}
