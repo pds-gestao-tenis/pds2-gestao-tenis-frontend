@@ -3,6 +3,7 @@ import type { ApiServices, Booking, BookingInput } from '../api/types';
 import { clubDate, clubTime, nextClubDays } from '../lib/club-time';
 import type { MockBooking, MockContext } from './context';
 import { queueFor, slotState } from './schedule';
+import { notifyBooking } from './notifications';
 
 const KEYS = ['court_id', 'starts_at', 'participant_ids'];
 const RESCHEDULE_KEYS = ['court_id', 'starts_at'];
@@ -26,12 +27,12 @@ export function toBooking(ctx: MockContext, mock: MockBooking, viewerId: number)
     status: mock.status,
     organizer: { id: mock.organizer_id, name: nameOf(mock.organizer_id) },
     participants: mock.participants.map((item) => ({ id: item.user_id, name: nameOf(item.user_id), attendance: item.attendance })),
-    my_role: mock.organizer_id === viewerId ? 'organizer' : 'participant',
+    my_role: mock.organizer_id === viewerId ? 'organizer' : mock.participants.some((item) => item.user_id === viewerId) ? 'participant' : 'administrator',
   };
 }
 
 // Ativa que já terminou aparece como concluída, sem gravar isso no banco.
-function withStatus(ctx: MockContext, mock: MockBooking, viewerId: number): Booking {
+export function withStatus(ctx: MockContext, mock: MockBooking, viewerId: number): Booking {
   const booking = toBooking(ctx, mock, viewerId);
   if (mock.status === 'active' && Date.parse(mock.ends_at) <= ctx.now()) booking.status = 'completed';
   return booking;
@@ -81,7 +82,7 @@ export function releaseSlot(ctx: MockContext, courtId: number, startsAt: string)
   ctx.persist();
 }
 
-export function bookingHandlers(ctx: MockContext): Pick<ApiServices, 'searchPlayers' | 'createBooking' | 'listBookings' | 'getBooking' | 'respondAttendance' | 'cancelBooking' | 'rescheduleBooking'> {
+export function bookingHandlers(ctx: MockContext, administrative = false): Pick<ApiServices, 'searchPlayers' | 'createBooking' | 'listBookings' | 'getBooking' | 'respondAttendance' | 'cancelBooking' | 'rescheduleBooking'> {
   return {
     async listBookings(token, scope) {
       await ctx.wait();
@@ -120,24 +121,25 @@ export function bookingHandlers(ctx: MockContext): Pick<ApiServices, 'searchPlay
     },
     async cancelBooking(token, id) {
       await ctx.wait();
-      const viewer = ctx.authenticate(token).user;
+      const viewer = ctx.authenticate(token, administrative).user;
       const found = Number.isSafeInteger(id) ? ctx.db.bookings.find((item) => item.id === id) : undefined;
-      if (!found || !isMine(found, viewer.id)) throw new ApiError('Reserva não encontrada.', 404);
-      if (found.organizer_id !== viewer.id) throw new ApiError('Só quem organiza pode cancelar a reserva.', 403);
+      if (!found || (!administrative && !isMine(found, viewer.id))) throw new ApiError('Reserva não encontrada.', 404);
+      if (!administrative && found.organizer_id !== viewer.id) throw new ApiError('Só quem organiza pode cancelar a reserva.', 403);
       if (found.status !== 'active' || Date.parse(found.starts_at) <= ctx.now()) {
         throw new ApiError('Essa reserva já começou ou foi cancelada.', 422);
       }
       found.status = 'cancelled';
       ctx.persist();
+      notifyBooking(ctx, found, 'booking_cancelled');
       releaseSlot(ctx, found.court_id, found.starts_at);
       return toBooking(ctx, found, viewer.id);
     },
     async rescheduleBooking(token, id, input) {
       await ctx.wait();
-      const viewer = ctx.authenticate(token).user;
+      const viewer = ctx.authenticate(token, administrative).user;
       const found = Number.isSafeInteger(id) ? ctx.db.bookings.find((item) => item.id === id) : undefined;
-      if (!found || !isMine(found, viewer.id)) throw new ApiError('Reserva não encontrada.', 404);
-      if (found.organizer_id !== viewer.id) throw new ApiError('Só quem organiza pode remarcar a reserva.', 403);
+      if (!found || (!administrative && !isMine(found, viewer.id))) throw new ApiError('Reserva não encontrada.', 404);
+      if (!administrative && found.organizer_id !== viewer.id) throw new ApiError('Só quem organiza pode remarcar a reserva.', 403);
       if (found.status !== 'active' || Date.parse(found.starts_at) <= ctx.now()) {
         throw new ApiError('Essa reserva já começou ou foi cancelada.', 422);
       }
@@ -151,10 +153,12 @@ export function bookingHandlers(ctx: MockContext): Pick<ApiServices, 'searchPlay
       found.court_id = court.id;
       found.starts_at = iso;
       found.ends_at = new Date(start + HOUR).toISOString();
+      found.notification_version = (found.notification_version ?? 0) + 1;
       for (const item of found.participants) {
         if (item.user_id !== found.organizer_id) item.attendance = 'pending';
       }
       ctx.persist();
+      notifyBooking(ctx, found, 'booking_changed');
       releaseSlot(ctx, previous.court_id, previous.starts_at);
       return toBooking(ctx, found, viewer.id);
     },
@@ -193,6 +197,7 @@ export function bookingHandlers(ctx: MockContext): Pick<ApiServices, 'searchPlay
       };
       ctx.db.bookings.push(booking);
       ctx.persist();
+      notifyBooking(ctx, booking, 'booking_confirmed');
       return toBooking(ctx, booking, viewer.id);
     },
   };

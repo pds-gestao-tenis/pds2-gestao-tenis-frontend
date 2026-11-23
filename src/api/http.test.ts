@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ApiError, errorMessage, isExpired } from './error';
 import { pathId, request } from './http';
 
 // fetch é a fronteira externa, então o stub é legítimo aqui.
@@ -35,5 +36,19 @@ describe('pathId', () => {
   it('aceita inteiro positivo', () => expect(pathId(12)).toBe('12'));
   it.each([0, -1, 1.5, NaN, 2 ** 53])('pathId(%s) lança 422', (id) => {
     expect(() => pathId(id)).toThrow(expect.objectContaining({ status: 422 }));
+  });
+});
+
+describe('error helpers', () => {
+  it('isExpired só para ApiError 401', () => {
+    expect(isExpired(new ApiError('x', 401))).toBe(true);
+    expect(isExpired(new ApiError('x', 403))).toBe(false);
+    expect(isExpired(new Error('x'))).toBe(false);
+  });
+  it('errorMessage usa a mensagem do ApiError', () => {
+    expect(errorMessage(new ApiError('Horário ocupado.', 409), 'Falhou.')).toBe('Horário ocupado.');
+  });
+  it('errorMessage não expõe erros desconhecidos', () => {
+    expect(errorMessage(new TypeError('x is undefined'), 'Falhou.')).toBe('Falhou.');
   });
 });

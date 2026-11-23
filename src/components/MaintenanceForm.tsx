@@ -111,6 +111,7 @@ export function MaintenanceForm({ court, token, onSaved, onCancel, onExpired }: 
 
   return (
     <form className="maintenance-form" onSubmit={handleSubmit} noValidate aria-label={`Manutenção de ${court.name}`}>
+      <p className="muted">Bloqueie o período para um evento ou uma manutenção. Descreva o motivo abaixo; reservas afetadas exigem confirmação antes do cancelamento.</p>
       {formError && <p className="alert" role="alert">{formError}</p>}
       {field('starts_at', 'Início', 'datetime-local')}
       {field('ends_at', 'Fim', 'datetime-local')}

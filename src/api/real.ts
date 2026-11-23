@@ -1,7 +1,7 @@
 import { BOOKING_MINUTES, toBooking, toWaitlistEntry, type ApiBooking } from './booking-adapter';
 import { ApiError } from './error';
 import { pathId, request } from './http';
-import type { ApiServices, Court, CourtInput, Member, Player, Schedule, User } from './types';
+import type { ApiServices, Booking, ClubNotification, CompatiblePlayer, Court, CourtInput, Fee, Member, Occupancy, Player, PlayerProfile, Schedule, User } from './types';
 
 const NO_OFFERS = 'A fila de espera confirma a reserva automaticamente quando o horário libera.';
 
@@ -130,4 +130,36 @@ export const realApi: ApiServices = {
   // Sem ofertas no backend: a fila confirma sozinha. Respondem como oferta encerrada (409).
   acceptOffer: async () => { throw new ApiError(NO_OFFERS, 409); },
   declineOffer: async () => { throw new ApiError(NO_OFFERS, 409); },
+  listNotifications: (token) => unwrap<ClubNotification[]>('/notifications', send('GET', token)),
+  markNotificationRead: async (token, id) => unwrap<ClubNotification>(`/notifications/${pathId(id)}/read`, send('PUT', token)),
+  markAllNotificationsRead: (token) => request<void>('/notifications/read-all', send('PUT', token)),
+  listFees(token, query = {}) {
+    const params = new URLSearchParams();
+    if (query.scope !== undefined) params.set('scope', query.scope);
+    if (query.status !== undefined) params.set('status', query.status);
+    if (query.member_id !== undefined) params.set('member_id', String(query.member_id));
+    return unwrap<Fee[]>(`/fees${params.size ? `?${params}` : ''}`, send('GET', token));
+  },
+  createFee: (token, input) => unwrap<Fee>('/fees', json('POST', {
+    member_id: input.member_id, description: input.description, amount_cents: input.amount_cents, due_date: input.due_date,
+  }, token)),
+  recordPayment: async (token, id, input) => unwrap<Fee>(`/fees/${pathId(id)}/payments`, json('POST', {
+    amount_cents: input.amount_cents, paid_on: input.paid_on,
+  }, token)),
+  payFee: async (token, id, input) => unwrap<Fee>(`/fees/${pathId(id)}/checkout`, json('POST', { idempotency_key: input.idempotency_key }, token)),
+  getPlayerProfile: (token) => unwrap<PlayerProfile>('/players/me/profile', send('GET', token)),
+  updatePlayerProfile: (token, input) => unwrap<PlayerProfile>('/players/me/profile', json('PUT', {
+    level: input.level, availability: input.availability.map((item) => ({ weekday: item.weekday, start_time: item.start_time, end_time: item.end_time })),
+  }, token)),
+  listCompatiblePlayers: (token) => unwrap<CompatiblePlayer[]>('/players/compatible', send('GET', token)),
+  invitePlayer: async (token, id, playerId) => unwrap<Booking>(`/bookings/${pathId(id)}/invitations`, json('POST', { player_id: playerId }, token)),
+  listClubBookings(token, query) {
+    const params = new URLSearchParams({ from: query.from, to: query.to });
+    if (query.court_id !== undefined) params.set('court_id', String(query.court_id));
+    if (query.status !== undefined) params.set('status', query.status);
+    return unwrap<Booking[]>(`/admin/bookings?${params}`, send('GET', token));
+  },
+  cancelClubBooking: async (token, id) => unwrap<Booking>(`/admin/bookings/${pathId(id)}/cancel`, send('POST', token)),
+  rescheduleClubBooking: async (token, id, input) => unwrap<Booking>(`/admin/bookings/${pathId(id)}`, json('PATCH', { court_id: input.court_id, starts_at: input.starts_at }, token)),
+  getOccupancy: (token, query) => unwrap<Occupancy[]>(`/admin/occupancy?${new URLSearchParams({ from: query.from, to: query.to })}`, send('GET', token)),
 };

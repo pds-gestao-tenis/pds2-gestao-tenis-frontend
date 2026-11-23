@@ -1,5 +1,5 @@
 import { ApiError } from '../api/error';
-import type { Attendance, Court, Member } from '../api/types';
+import type { Attendance, ClubNotification, Court, FeePayment, Member } from '../api/types';
 import { initialAccounts, initialClubData, initialMembers, MOCK_DATA_KEY, type MockAccount } from './fixtures';
 
 export type MockSession = { token: string; userId: number; expiresAt: string };
@@ -11,6 +11,19 @@ export type MockBooking = {
   status: 'active' | 'cancelled';
   organizer_id: number;
   participants: { user_id: number; attendance: Attendance }[];
+  notification_version?: number;
+};
+export type MockNotification = ClubNotification & { user_id: number; reminder_key?: string };
+export type MockFee = {
+  id: number;
+  member_id: number;
+  member_name: string;
+  description: string;
+  amount_cents: number;
+  due_date: string;
+  payments: FeePayment[];
+  created_at: string;
+  checkout_keys?: string[];
 };
 export type MockWaitlistEntry = {
   id: number;
@@ -30,6 +43,11 @@ export type Database = {
   nextUserId: number;
   nextMemberId: number;
   nextId: number;
+  notifications: MockNotification[];
+  fees: MockFee[];
+  nextNotificationId: number;
+  nextFeeId: number;
+  nextPaymentId: number;
 };
 export type MockOptions = { delayMs?: number; scenario?: string; storage?: Pick<Storage, 'getItem' | 'setItem'>; now?: () => number };
 
@@ -51,10 +69,33 @@ function isDatabase(value: unknown): value is Database {
     [db.nextUserId, db.nextMemberId, db.nextId].every(Number.isInteger);
 }
 
-function loadDatabase(storage: MockOptions['storage']): Database | null {
+function loadDatabase(storage: MockOptions['storage'], now: () => number): Database | null {
   try {
-    const parsed: unknown = JSON.parse(storage?.getItem(MOCK_DATA_KEY) ?? 'null');
-    return isDatabase(parsed) ? parsed : null;
+    const current = storage?.getItem(MOCK_DATA_KEY);
+    const previous = current == null ? storage?.getItem('clube-tenis.mock-data.v2') : null;
+    const parsed: unknown = JSON.parse(current ?? previous ?? 'null');
+    if (!isDatabase(parsed)) return null;
+    if (previous != null) {
+      const demoCourts = initialClubData(now()).courts;
+      for (const court of parsed.courts) {
+        const demo = demoCourts.find((item) => item.id === court.id);
+        court.address ??= demo?.address ?? 'Endereço não informado';
+        court.size_m2 ??= demo?.size_m2 ?? 260.76;
+        court.max_players ??= demo?.max_players ?? 4;
+        court.hourly_price ??= demo?.hourly_price ?? 0;
+      }
+    }
+    // Dados adicionados após a primeira versão de reservas.
+    parsed.notifications = Array.isArray(parsed.notifications) ? parsed.notifications : [];
+    parsed.fees = Array.isArray(parsed.fees) ? parsed.fees : [];
+    parsed.nextNotificationId = Math.max(0, ...parsed.notifications.map((item) => item.id)) + 1;
+    parsed.nextFeeId = Math.max(0, ...parsed.fees.map((item) => item.id)) + 1;
+    parsed.nextPaymentId = Math.max(0, ...parsed.fees.flatMap((item) => item.payments.map((payment) => payment.id))) + 1;
+    for (const account of parsed.accounts) {
+      const demo = initialAccounts().find((item) => item.user.id === account.user.id && item.user.email === account.user.email);
+      if (account.member_id === undefined && demo?.member_id !== undefined) account.member_id = demo.member_id;
+    }
+    return parsed;
   } catch {
     return null; // Dados inválidos ou armazenamento indisponível: usa fixtures.
   }
@@ -62,13 +103,18 @@ function loadDatabase(storage: MockOptions['storage']): Database | null {
 
 export function createMockContext({ delayMs = 450, scenario = 'success', storage, now = Date.now }: MockOptions = {}): MockContext {
   const ctx: MockContext = {
-    db: loadDatabase(storage) ?? {
+    db: loadDatabase(storage, now) ?? {
       accounts: initialAccounts(),
       members: scenario === 'empty' ? [] : initialMembers(),
       sessions: [],
       ...initialClubData(now()),
       nextUserId: 6,
       nextMemberId: 4,
+      notifications: [],
+      fees: [],
+      nextNotificationId: 1,
+      nextFeeId: 1,
+      nextPaymentId: 1,
     },
     now,
     scenario,

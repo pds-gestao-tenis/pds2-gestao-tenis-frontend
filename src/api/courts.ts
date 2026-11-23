@@ -1,5 +1,6 @@
 import { getApi } from './client';
 import type { CourtInput, MaintenanceInput } from './types';
+import { refreshNotifications } from './notifications';
 
 export async function listCourts(token: string) {
   return (await getApi()).listCourts(token);
@@ -17,7 +18,9 @@ export async function updateCourt(token: string, id: number, input: Partial<Cour
   return (await getApi()).updateCourt(token, id, input);
 }
 export async function addMaintenance(token: string, courtId: number, input: MaintenanceInput) {
-  return (await getApi()).addMaintenance(token, courtId, input);
+  const court = await (await getApi()).addMaintenance(token, courtId, input);
+  refreshNotifications();
+  return court;
 }
 export async function removeMaintenance(token: string, courtId: number, maintenanceId: number) {
   return (await getApi()).removeMaintenance(token, courtId, maintenanceId);

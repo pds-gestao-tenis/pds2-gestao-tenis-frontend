@@ -1,23 +1,23 @@
-import type { Court, Member, User } from '../api/types';
+import type { Court, Member, PlayerProfile, User } from '../api/types';
 import { clubDate, fromClubLocal } from '../lib/club-time';
 import type { MockBooking, MockWaitlistEntry } from './context';
 
 export const DEMO_PASSWORD = 'SenhaSegura123';
 export const DEMO_ADMIN_EMAIL = 'admin@clube.example';
 export const DEMO_USER_EMAIL = 'usuario@clube.example';
-// v3: quadras com endereço, área, jogadores e preço. Dados salvos de versões antigas são descartados.
+// v3: quadras com endereço, área, jogadores e preço. Dados v2 são migrados no carregamento.
 export const MOCK_DATA_KEY = 'clube-tenis.mock-data.v3';
 const created_at = '2026-01-01T12:00:00.000Z';
 
 // As permissões pertencem ao simulador; não fazem parte de UserResponse da API atual.
-export type MockAccount = { user: User; admin: boolean; passwordHash?: string };
+export type MockAccount = { user: User; admin: boolean; passwordHash?: string; member_id?: number; player_profile?: PlayerProfile };
 export function initialAccounts(): MockAccount[] {
   return [
     { user: { id: 1, name: 'Ana Administradora', email: DEMO_ADMIN_EMAIL, created_at }, admin: true },
     { user: { id: 2, name: 'Bruno Usuário', email: DEMO_USER_EMAIL, created_at }, admin: false },
-    { user: { id: 3, name: 'Mariana Silva', email: 'mariana@clube.example', created_at }, admin: false },
-    { user: { id: 4, name: 'Pedro Santos', email: 'pedro@clube.example', created_at }, admin: false },
-    { user: { id: 5, name: 'Camila Oliveira', email: 'camila@clube.example', created_at }, admin: false },
+    { user: { id: 3, name: 'Mariana Silva', email: 'mariana@clube.example', created_at }, admin: false, member_id: 1 },
+    { user: { id: 4, name: 'Pedro Santos', email: 'pedro@clube.example', created_at }, admin: false, member_id: 2 },
+    { user: { id: 5, name: 'Camila Oliveira', email: 'camila@clube.example', created_at }, admin: false, member_id: 3 },
   ];
 }
 

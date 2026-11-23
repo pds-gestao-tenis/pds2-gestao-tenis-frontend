@@ -7,6 +7,10 @@ import { advanceOffers, waitlistHandlers } from './waitlist';
 import { createMockContext, type MockContext, type MockOptions } from './context';
 import { DEMO_PASSWORD } from './fixtures';
 import { validateLogin, validateMember, validateRegistration } from './validation';
+import { notificationHandlers } from './notifications';
+import { financeHandlers } from './finance';
+import { playerHandlers } from './players';
+import { administrationHandlers } from './administration';
 
 // Sem sessão não há o que avançar; aceitar e recusar avançam depois de achar a entrada.
 const SKIP_ADVANCE: readonly (keyof ApiServices)[] = ['login', 'register', 'acceptOffer', 'declineOffer'];
@@ -130,6 +134,10 @@ export function mockApiFor(ctx: MockContext): ApiServices {
     ...scheduleHandlers(ctx),
     ...bookingHandlers(ctx),
     ...waitlistHandlers(ctx),
+    ...notificationHandlers(ctx),
+    ...financeHandlers(ctx),
+    ...playerHandlers(ctx),
+    ...administrationHandlers(ctx),
   };
   // Como um job no servidor: antes de cada chamada autenticada, ofertas vencidas passam ao próximo da fila.
   const handlers = services as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;

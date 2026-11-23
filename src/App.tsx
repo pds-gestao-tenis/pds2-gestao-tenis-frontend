@@ -10,6 +10,7 @@ import { RegisterForm } from './components/RegisterForm';
 import { useMemberAccess } from './hooks/useMemberAccess';
 import { useRoute } from './hooks/useRoute';
 import { useSession } from './hooks/useSession';
+import { useNotifications } from './hooks/useNotifications';
 import { navigate, type Route } from './navigation';
 import { AccountPage } from './pages/AccountPage';
 import { BookingDetailPage } from './pages/BookingDetailPage';
@@ -19,8 +20,15 @@ import { HomePage } from './pages/HomePage';
 import { MembersPage } from './pages/MembersPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { SchedulePage } from './pages/SchedulePage';
+import { NotificationsPage } from './pages/NotificationsPage';
+import { FeesPage, FinancePage } from './pages/FeesPage';
+import { PartnersPage } from './pages/PartnersPage';
+import { ClubBookingsPage } from './pages/ClubBookingsPage';
+import { OccupancyPage } from './pages/OccupancyPage';
 import './styles/app.css';
 import './styles/booking.css';
+import './styles/notifications-finance.css';
+import './styles/partners-administration.css';
 
 const backdrop = <CourtBackdrop />;
 const intro = (
@@ -37,6 +45,8 @@ const TITLES: Record<Route, string> = {
   home: 'Início', account: 'Minha conta', members: 'Membros',
   courts: 'Quadras', schedule: 'Agenda', reschedule: 'Remarcar', bookings: 'Minhas reservas',
   booking: 'Reserva', login: 'Entrar', register: 'Criar conta', 'not-found': 'Página não encontrada',
+  notifications: 'Notificações', fees: 'Minhas taxas', finance: 'Financeiro',
+  partners: 'Encontrar parceiros', 'club-bookings': 'Reservas do clube', occupancy: 'Ocupação',
 };
 
 function ClubApp({ session, route, id, onLogout, onExpired }: {
@@ -47,13 +57,32 @@ function ClubApp({ session, route, id, onLogout, onExpired }: {
   onExpired: () => void;
 }) {
   const { access, retry } = useMemberAccess(session.token, onExpired);
+  const notifications = useNotifications(session.token, onExpired);
   let page: ReactNode;
   switch (route) {
+    case 'partners':
+      page = <PartnersPage session={session} onExpired={onExpired} />;
+      break;
+    case 'club-bookings':
+      page = <ClubBookingsPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
+      break;
+    case 'occupancy':
+      page = <OccupancyPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
+      break;
+    case 'notifications':
+      page = <NotificationsPage notifications={notifications} onExpired={onExpired} />;
+      break;
+    case 'fees':
+      page = <FeesPage session={session} onExpired={onExpired} />;
+      break;
+    case 'finance':
+      page = <FinancePage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
+      break;
     case 'account':
       page = <AccountPage session={session} access={access} onRetry={retry} />;
       break;
     case 'members':
-      page = <MembersPage access={access} onRetry={retry} />;
+      page = <MembersPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
       break;
     case 'courts':
       page = <CourtsPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
@@ -77,7 +106,7 @@ function ClubApp({ session, route, id, onLogout, onExpired }: {
       page = <HomePage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
   }
   return (
-    <AppLayout session={session} route={route} access={access} onLogout={onLogout} mockNotice={mockNotice}>
+    <AppLayout session={session} route={route} access={access} onLogout={onLogout} mockNotice={mockNotice} unreadCount={notifications.unreadCount}>
       {page}
     </AppLayout>
   );
@@ -95,8 +124,8 @@ export function App() {
     if (authenticated && (route === 'login' || route === 'register' || !window.location.hash)) navigate('home', true);
   }, [route, authenticated]);
 
-  const anonymousTitle = route === 'register' ? 'Criar conta' : 'Entrar';
-  const title = authenticated ? TITLES[route] : auth.state.status === 'anonymous' ? anonymousTitle : 'Verificar sessão';
+  const entryTitle = route === 'register' ? TITLES.register : TITLES.login;
+  const title = authenticated ? TITLES[route] : auth.state.status === 'anonymous' ? entryTitle : 'Verificar sessão';
   useEffect(() => {
     document.title = `${title} · Clube de Tênis`;
   }, [title]);

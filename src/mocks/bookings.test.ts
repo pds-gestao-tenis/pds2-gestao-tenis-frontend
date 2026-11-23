@@ -247,3 +247,51 @@ describe('bookingHandlers', () => {
     });
   });
 });
+
+describe('US26–US30: administração de reservas', () => {
+  const range = { from: '2026-11-01', to: '2026-11-15' };
+  it('agenda geral inclui todas as contas e histórico, com filtros de quadra e situação', async () => {
+    const { api, admin } = await setupTestApi({ now });
+    const all = await api.listClubBookings(admin.token, range);
+    expect(all.map((item) => item.id)).toEqual([7, 5, 6]);
+    expect(all.every((item) => item.my_role === 'administrator')).toBe(true);
+    expect((await api.listClubBookings(admin.token, { ...range, status: 'completed', court_id: 2 })).map((item) => item.id)).toEqual([7]);
+  });
+  it('administrador altera e cancela sem trocar o organizador, avisa os envolvidos e libera a fila', async () => {
+    const { api, admin, player, mariana, pedro } = await setupTestApi({ now });
+    await api.respondAttendance(mariana.token, 5, 'confirmed');
+    const entry = await api.joinWaitlist(pedro.token, { court_id: 1, starts_at: '2026-11-10T22:00:00Z' });
+    const moved = await api.rescheduleClubBooking(admin.token, 5, { court_id: 2, starts_at: '2026-11-10T23:00:00Z' });
+    expect(moved.organizer.id).toBe(player.user.id);
+    expect(moved.participants.find((item) => item.id === 3)?.attendance).toBe('pending');
+    expect((await api.listWaitlist(pedro.token))[0]).toMatchObject({ id: entry.id, offer: expect.any(Object) });
+    await api.cancelClubBooking(admin.token, 5);
+    expect((await api.listNotifications(mariana.token)).map((item) => item.kind)).toEqual(['booking_cancelled', 'booking_changed']);
+  });
+  it('não permite acesso administrativo a jogador nem alterar passado ou sobrepor reserva/bloqueio', async () => {
+    const { api, admin, player } = await setupTestApi({ now });
+    await expect(api.listClubBookings(player.token, range)).rejects.toMatchObject({ status: 403 });
+    await expect(api.cancelClubBooking(player.token, 5)).rejects.toMatchObject({ status: 403 });
+    await expect(api.rescheduleClubBooking(player.token, 5, { court_id: 1, starts_at: '2026-11-10T23:00:00Z' })).rejects.toMatchObject({ status: 403 });
+    await expect(api.getOccupancy(player.token, range)).rejects.toMatchObject({ status: 403 });
+    await expect(api.cancelClubBooking(admin.token, 7)).rejects.toMatchObject({ status: 422 });
+    await expect(api.rescheduleClubBooking(admin.token, 5, { court_id: 2, starts_at: '2026-11-11T11:00:00Z' })).rejects.toMatchObject({ status: 409 });
+    await api.addMaintenance(admin.token, 1, { starts_at: '2026-11-10T23:00:00Z', ends_at: '2026-11-11T00:00:00Z', reason: 'Evento do clube' });
+    await expect(api.rescheduleClubBooking(admin.token, 5, { court_id: 1, starts_at: '2026-11-10T23:00:00Z' })).rejects.toMatchObject({ status: 409 });
+  });
+  it('indicadores excluem bloqueios sobrepostos uma única vez e cancelamentos das horas ocupadas', async () => {
+    const { api, admin } = await setupTestApi({ now });
+    await api.addMaintenance(admin.token, 1, { starts_at: '2026-11-10T10:30:00Z', ends_at: '2026-11-10T12:30:00Z', reason: 'Evento' });
+    await api.addMaintenance(admin.token, 1, { starts_at: '2026-11-10T11:00:00Z', ends_at: '2026-11-10T12:00:00Z', reason: 'Ajuste' });
+    const row = (await api.getOccupancy(admin.token, { from: '2026-11-10', to: '2026-11-10' }))[0];
+    expect(row).toMatchObject({ available_hours: 12, blocked_hours: 3, booked_hours: 1, occupancy_percent: 8.3 });
+    await api.cancelClubBooking(admin.token, 5);
+    expect((await api.getOccupancy(admin.token, { from: '2026-11-10', to: '2026-11-10' }))[0]).toMatchObject({ booked_hours: 0, occupancy_percent: 0, cancelled_bookings: 1 });
+  });
+  it('período totalmente bloqueado tem ocupação zero e datas inválidas são rejeitadas', async () => {
+    const { api, admin } = await setupTestApi({ now });
+    await api.addMaintenance(admin.token, 1, { starts_at: '2026-11-09T10:00:00Z', ends_at: '2026-11-10T01:00:00Z', reason: 'Evento' });
+    expect((await api.getOccupancy(admin.token, { from: '2026-11-09', to: '2026-11-09' }))[0]).toMatchObject({ available_hours: 0, occupancy_percent: 0, blocked_hours: 15 });
+    for (const dates of [{ from: '2026-02-30', to: '2026-03-01' }, { from: '2026-11-10', to: '2026-11-09' }, { from: '2025-01-01', to: '2026-11-09' }]) await expect(api.getOccupancy(admin.token, dates)).rejects.toMatchObject({ status: 422 });
+  });
+});

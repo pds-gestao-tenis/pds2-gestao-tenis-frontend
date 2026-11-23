@@ -12,6 +12,7 @@ type Props = {
   onLogout: () => Promise<void>;
   children: ReactNode;
   mockNotice?: ReactNode;
+  unreadCount?: number;
 };
 
 type NavLink = { route: keyof typeof routePaths; label: string };
@@ -20,11 +21,14 @@ const LINKS: NavLink[] = [
   { route: 'home', label: 'Início' },
   { route: 'schedule', label: 'Agenda' },
   { route: 'bookings', label: 'Minhas reservas' },
+  { route: 'fees', label: 'Minhas taxas' },
+  { route: 'partners', label: 'Encontrar parceiros' },
+  { route: 'notifications', label: 'Notificações' },
   { route: 'account', label: 'Minha conta' },
 ];
-const ADMIN_LINKS: NavLink[] = [...LINKS, { route: 'members', label: 'Membros' }, { route: 'courts', label: 'Quadras' }];
+const ADMIN_LINKS: NavLink[] = [...LINKS, { route: 'members', label: 'Membros' }, { route: 'courts', label: 'Quadras' }, { route: 'finance', label: 'Financeiro' }, { route: 'club-bookings', label: 'Reservas do clube' }, { route: 'occupancy', label: 'Ocupação' }];
 
-export function AppLayout({ session, route, access, onLogout, children, mockNotice }: Props) {
+export function AppLayout({ session, route, access, onLogout, children, mockNotice, unreadCount = 0 }: Props) {
   const mainRef = useRef<HTMLElement>(null);
   const [leaving, startLeaving] = useTransition();
   const firstName = session.user.name.trim().split(/\s+/)[0];
@@ -72,7 +76,15 @@ export function AppLayout({ session, route, access, onLogout, children, mockNoti
       </aside>
       <div className="workspace-body">
         <header className="workspace-topbar">
-          <span className="today">{clubLongDay(Date.now())}</span><span className="session-indicator">Sessão ativa</span>
+          <span className="today">{clubLongDay(Date.now())}</span>
+          <div className="topbar-actions">
+            <span className="session-indicator">Sessão ativa</span>
+            <a className="notification-link" href={routePaths.notifications} aria-label={unreadCount ? `Notificações: ${unreadCount} não lidas` : 'Notificações'} title="Ver notificações">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 7 2 7 2 8H4c0-1 2-1 2-8Z" /><path d="M10 20h4" /></svg>
+              {unreadCount > 0 && <span className="notification-count" aria-hidden="true">{unreadCount > 99 ? '99+' : unreadCount}</span>}
+            </a>
+            <span className="visually-hidden" role="status">{unreadCount > 0 ? `${unreadCount} notificações não lidas` : ''}</span>
+          </div>
         </header>
         <main className="workspace-main" id="conteudo" tabIndex={-1} ref={mainRef}>{children}</main>
         <footer className="workspace-footer">
