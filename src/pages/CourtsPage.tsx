@@ -161,7 +161,7 @@ export function CourtsPage({ session, access, now, onRetry, onExpired }: Props) 
       <div className="page-heading">
         <p className="eyebrow">Administração</p>
         <h1>Quadras</h1>
-        <p>Cadastre e organize as quadras do clube.</p>
+        <p>Cadastre as quadras e bloqueie horários para eventos ou manutenção. Use “Marcar manutenção” para informar o período e o motivo do bloqueio.</p>
       </div>
       {content}
       <a className="text-link" href={routePaths.home}>Voltar ao início <span aria-hidden="true">→</span></a>

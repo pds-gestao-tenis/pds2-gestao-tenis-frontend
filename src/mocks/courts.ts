@@ -1,6 +1,7 @@
 import { ApiError } from '../api/error';
 import type { ApiServices, Court, CourtInput, MaintenanceInput, Surface } from '../api/types';
 import type { MockContext } from './context';
+import { notifyBooking } from './notifications';
 
 const SURFACES: Surface[] = ['clay', 'hard', 'grass', 'synthetic'];
 const KEYS = ['name', 'surface', 'covered'];
@@ -104,7 +105,10 @@ export function courtHandlers(ctx: MockContext): Pick<ApiServices, 'listCourts' 
         const message = `Há ${affected.length} reserva(s) nesse período.`;
         throw new ApiError(message, 409, { cancel_bookings: [message] });
       }
-      for (const booking of affected) booking.status = 'cancelled';
+      for (const booking of affected) {
+        booking.status = 'cancelled';
+        notifyBooking(ctx, booking, 'booking_cancelled');
+      }
       ctx.db.waitlist = ctx.db.waitlist.filter((entry) => !(entry.court_id === court.id
         && start < Date.parse(entry.starts_at) + HOUR && Date.parse(entry.starts_at) < end));
       court.maintenance.push({

@@ -51,7 +51,7 @@ export type Booking = {
   status: 'active' | 'cancelled' | 'completed';
   organizer: Player;
   participants: Participant[];
-  my_role: 'organizer' | 'participant';
+  my_role: 'organizer' | 'participant' | 'administrator';
 };
 export type BookingInput = { court_id: number; starts_at: string; participant_ids: number[] };
 export type SlotRef = { court_id: number; starts_at: string };
@@ -63,6 +63,38 @@ export type WaitlistEntry = {
   position: number;
   offer: { expires_at: string } | null;
 };
+
+export type NotificationKind = 'booking_confirmed' | 'booking_cancelled' | 'booking_changed' | 'booking_reminder' | 'booking_invitation';
+export type ClubNotification = {
+  id: number;
+  kind: NotificationKind;
+  title: string;
+  message: string;
+  booking_id: number;
+  created_at: string;
+  read_at: string | null;
+};
+export type FeePayment = { id: number; amount_cents: number; paid_on: string; created_at: string };
+export type Fee = {
+  id: number;
+  member: { id: number; name: string };
+  description: string;
+  amount_cents: number;
+  paid_cents: number;
+  balance_cents: number;
+  due_date: string;
+  status: 'pending' | 'partial' | 'paid';
+  payments: FeePayment[];
+  created_at: string;
+};
+export type FeeInput = { member_id: number; description: string; amount_cents: number; due_date: string };
+export type PaymentInput = { amount_cents: number; paid_on: string };
+export type FeeQuery = { scope?: 'mine' | 'all'; status?: 'pending' | 'paid'; member_id?: number };
+export type Availability = { weekday: number; start_time: string; end_time: string };
+export type PlayerProfile = { level: 1 | 2 | 3 | 4 | 5 | null; availability: Availability[] };
+export type CompatiblePlayer = Player & { level: number; common_availability: Availability[] };
+export type ClubBookingQuery = { from: string; to: string; court_id?: number; status?: Booking['status'] };
+export type Occupancy = { court: { id: number; name: string }; available_hours: number; booked_hours: number; blocked_hours: number; cancelled_bookings: number; occupancy_percent: number };
 
 /** Contrato único usado tanto pela API HTTP quanto pelo simulador. */
 export interface ApiServices {
@@ -93,4 +125,19 @@ export interface ApiServices {
   leaveWaitlist(token: string, id: number): Promise<void>;
   acceptOffer(token: string, id: number): Promise<Booking>;
   declineOffer(token: string, id: number): Promise<void>;
+  listNotifications(token: string): Promise<ClubNotification[]>;
+  markNotificationRead(token: string, id: number): Promise<ClubNotification>;
+  markAllNotificationsRead(token: string): Promise<void>;
+  listFees(token: string, query?: FeeQuery): Promise<Fee[]>;
+  createFee(token: string, input: FeeInput): Promise<Fee>;
+  recordPayment(token: string, id: number, input: PaymentInput): Promise<Fee>;
+  payFee(token: string, id: number, input: { idempotency_key: string }): Promise<Fee>;
+  getPlayerProfile(token: string): Promise<PlayerProfile>;
+  updatePlayerProfile(token: string, input: PlayerProfile): Promise<PlayerProfile>;
+  listCompatiblePlayers(token: string): Promise<CompatiblePlayer[]>;
+  invitePlayer(token: string, bookingId: number, playerId: number): Promise<Booking>;
+  listClubBookings(token: string, query: ClubBookingQuery): Promise<Booking[]>;
+  cancelClubBooking(token: string, id: number): Promise<Booking>;
+  rescheduleClubBooking(token: string, id: number, input: SlotRef): Promise<Booking>;
+  getOccupancy(token: string, query: Pick<ClubBookingQuery, 'from' | 'to'>): Promise<Occupancy[]>;
 }

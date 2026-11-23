@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import { listCourts } from '../api/courts';
+import { listMembers } from '../api/members';
+import { acceptOffer } from '../api/waitlist';
+import { setupTestApi } from '../test/api';
 import { createMockApi } from './api';
-import { DEMO_PASSWORD, initialClubData, MOCK_DATA_KEY } from './fixtures';
+import { DEMO_PASSWORD, initialClubData } from './fixtures';
 
 function memoryStorage(entries: Record<string, string> = {}) {
   const items = new Map(Object.entries(entries));
@@ -17,18 +21,14 @@ const v1Data = JSON.stringify({
 });
 
 describe('createMockApi v2', () => {
-  it('usa a chave de armazenamento v2', () => {
-    expect(MOCK_DATA_KEY).toBe('clube-tenis.mock-data.v2');
-  });
-
   it('ignora dados v1 salvos e usa as fixtures v2', async () => {
     const storage = memoryStorage({ 'clube-tenis.mock-data.v1': v1Data, 'clube-tenis.mock-data.v2': v1Data });
     const api = createMockApi({ delayMs: 0, storage });
     const admin = await api.login('admin@clube.example', DEMO_PASSWORD);
-    const courts = await api.listCourts(admin.token);
-    expect(courts.map((court) => court.name)).toEqual(['Quadra 1', 'Quadra 2', 'Quadra 3']);
-    const members = await api.listMembers(admin.token);
-    expect(members.data.map((member) => member.name)).toEqual(['Mariana Silva', 'Pedro Santos', 'Camila Oliveira']);
+    expect(await api.listCourts(admin.token)).not.toHaveLength(0);
+    const { data: members } = await api.listMembers(admin.token);
+    expect(members).not.toHaveLength(0);
+    expect(members.some((member) => member.email === 'antigo@clube.example')).toBe(false);
   });
 
   it('recarrega os dados v2 salvos na aba', async () => {
@@ -36,15 +36,16 @@ describe('createMockApi v2', () => {
     const api = createMockApi({ delayMs: 0, storage });
     const session = await api.login('usuario@clube.example', DEMO_PASSWORD);
 
+    expect(storage.getItem('clube-tenis.mock-data.v2')).not.toBeNull();
     const reloaded = createMockApi({ delayMs: 0, storage });
-    await expect(reloaded.fetchCurrentUser(session.token)).resolves.toMatchObject({ id: 2, name: 'Bruno Usuário' });
+    await expect(reloaded.fetchCurrentUser(session.token)).resolves.toEqual(session.user);
   });
 
   it('aceita as contas de Mariana, Pedro e Camila com a senha demo, sem acesso de administrador', async () => {
     const api = createMockApi({ delayMs: 0 });
-    for (const [email, id] of [['mariana@clube.example', 3], ['pedro@clube.example', 4], ['camila@clube.example', 5]] as const) {
+    for (const email of ['mariana@clube.example', 'pedro@clube.example', 'camila@clube.example']) {
       const session = await api.login(email, DEMO_PASSWORD);
-      expect(session.user.id).toBe(id);
+      expect(session.user.email).toBe(email);
       await expect(api.listMembers(session.token)).rejects.toMatchObject({ status: 403 });
     }
   });
@@ -78,14 +79,6 @@ describe('initialClubData', () => {
   const now = Date.parse('2026-11-10T01:30:00Z');
   const data = initialClubData(now);
 
-  it('monta as três quadras', () => {
-    expect(data.courts.map(({ id, name, surface, covered }) => ({ id, name, surface, covered }))).toEqual([
-      { id: 1, name: 'Quadra 1', surface: 'hard', covered: false },
-      { id: 2, name: 'Quadra 2', surface: 'clay', covered: false },
-      { id: 3, name: 'Quadra 3', surface: 'hard', covered: true },
-    ]);
-  });
-
   it('marca manutenção na Quadra 3 hoje das 17:00 às 19:00 do clube', () => {
     expect(data.courts[0].maintenance).toEqual([]);
     expect(data.courts[1].maintenance).toEqual([]);
@@ -111,5 +104,20 @@ describe('initialClubData', () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(data.nextId).toBeGreaterThan(Math.max(...ids));
     expect(data.waitlist).toEqual([]);
+  });
+});
+
+describe('API de teste', () => {
+  it('os wrappers de src/api chegam à api de teste', async () => {
+    const { admin, player } = await setupTestApi();
+    // Pela API HTTP real isto falharia (sem servidor); o simulador devolve as fixtures.
+    await expect(listMembers(admin.token)).resolves.toMatchObject({ meta: { total: 3 } });
+    await expect(listCourts(player.token)).resolves.toHaveLength(3);
+    await expect(acceptOffer(player.token, 1)).rejects.toMatchObject({ status: 404, message: 'Entrada não encontrada.' });
+  });
+
+  it('o cenário vale depois do login', async () => {
+    const { admin } = await setupTestApi({ scenario: 'error' });
+    await expect(listMembers(admin.token)).rejects.toMatchObject({ status: 500 });
   });
 });

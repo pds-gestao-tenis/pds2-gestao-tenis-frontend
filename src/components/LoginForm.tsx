@@ -1,5 +1,6 @@
 import { useId, useRef, useState, useTransition, type FormEvent } from 'react';
 import { ApiError, login, type Session } from '../api/auth';
+import { routePaths } from '../navigation';
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -155,6 +156,7 @@ export function LoginForm({ onLogin, notice }: Props) {
         )}
       </button>
 
+      <p className="card-help">Primeiro acesso? <a className="text-link" href={routePaths.register}>Criar conta</a></p>
       <p className="card-help">
         Não consegue entrar?<br />
         Fale com a secretaria do clube.

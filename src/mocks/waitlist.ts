@@ -3,6 +3,7 @@ import type { ApiServices, WaitlistEntry } from '../api/types';
 import { releaseSlot, toBooking } from './bookings';
 import type { MockBooking, MockContext, MockWaitlistEntry } from './context';
 import { queueFor, slotState } from './schedule';
+import { notifyBooking } from './notifications';
 
 // queueFor mora em schedule.ts para bookings.ts usá-la sem importar este módulo.
 export { queueFor };
@@ -109,6 +110,7 @@ export function waitlistHandlers(ctx: MockContext): Pick<ApiServices, 'listWaitl
       ctx.db.bookings.push(booking);
       ctx.db.waitlist = ctx.db.waitlist.filter((item) => item !== found);
       ctx.persist();
+      notifyBooking(ctx, booking, 'booking_confirmed');
       return toBooking(ctx, booking, viewer.id);
     },
     async declineOffer(token, id) {

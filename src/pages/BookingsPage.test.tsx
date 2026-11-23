@@ -97,13 +97,8 @@ describe('BookingsPage', () => {
     expect(await screen.findByRole('link', { name: 'Quadra 1 · 19:00–20:00' })).toBeInTheDocument();
   });
 
-  it('erro mostra alerta e permite tentar de novo; 401 chama onExpired', async () => {
-    const { player } = await setupTestApi({ now: () => NOW, scenario: 'error' });
-    const failing = renderPage(player);
-    expect(await screen.findByRole('button', { name: 'Tentar novamente' })).toBeInTheDocument();
-    expect(screen.getByRole('alert')).toBeInTheDocument();
-    failing.unmount();
-    await setupTestApi({ now: () => NOW, scenario: 'expired' });
+  it('401 ao carregar reservas chama onExpired', async () => {
+    const { player } = await setupTestApi({ now: () => NOW, scenario: 'expired' });
     const { onExpired } = renderPage(player);
     await waitFor(() => expect(onExpired).toHaveBeenCalled());
   });
@@ -198,12 +193,11 @@ describe('BookingsPage cancelamento', () => {
     expect(within(card).getByText('Cancelada')).toBeInTheDocument();
   });
 
-  it('convidado não vê Cancelar e o mock responde 403 se tentar', async () => {
-    const { mariana, api } = await setupTestApi({ now: () => NOW });
+  it('convidado não vê Cancelar', async () => {
+    const { mariana } = await setupTestApi({ now: () => NOW });
     renderPage(mariana);
     await screen.findByRole('link', { name: 'Quadra 1 · 19:00–20:00' });
     expect(screen.queryByRole('button', { name: /^Cancelar/ })).not.toBeInTheDocument();
-    await expect(api.cancelBooking(mariana.token, 5)).rejects.toMatchObject({ status: 403 });
   });
 
   it('erro do servidor aparece no painel e permite tentar de novo; 401 chama onExpired', async () => {

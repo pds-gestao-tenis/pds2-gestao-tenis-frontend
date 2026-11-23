@@ -1,6 +1,6 @@
 export type Route =
   | 'home' | 'account' | 'members' | 'courts' | 'schedule' | 'reschedule'
-  | 'bookings' | 'booking' | 'login' | 'not-found';
+  | 'bookings' | 'booking' | 'notifications' | 'fees' | 'finance' | 'partners' | 'club-bookings' | 'occupancy' | 'login' | 'register' | 'not-found';
 
 export const routePaths = {
   home: '#/inicio',
@@ -9,7 +9,14 @@ export const routePaths = {
   courts: '#/quadras',
   schedule: '#/agenda',
   bookings: '#/reservas',
+  notifications: '#/notificacoes',
+  fees: '#/taxas',
+  finance: '#/financeiro',
+  partners: '#/parceiros',
+  'club-bookings': '#/admin/reservas',
+  occupancy: '#/admin/ocupacao',
   login: '#/entrar',
+  register: '#/cadastro',
 } as const;
 
 const bookingRoute = /^#\/reservas\/([1-9]\d{0,8})$/;
