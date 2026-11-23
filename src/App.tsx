@@ -21,6 +21,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { SchedulePage } from './pages/SchedulePage';
 import './styles/app.css';
 import './styles/booking.css';
+import './styles/members.css';
 
 const backdrop = <CourtBackdrop />;
 const intro = (
@@ -53,7 +54,7 @@ function ClubApp({ session, route, id, onLogout, onExpired }: {
       page = <AccountPage session={session} access={access} onRetry={retry} />;
       break;
     case 'members':
-      page = <MembersPage access={access} onRetry={retry} />;
+      page = <MembersPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
       break;
     case 'courts':
       page = <CourtsPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;

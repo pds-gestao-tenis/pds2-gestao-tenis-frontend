@@ -1,6 +1,6 @@
 # Clube de Tênis — Frontend
 
-Interface em React, TypeScript, Vite e CSS puro, com login, navegação, início, dados da conta e reservas de quadras completas: cadastro de quadras e manutenção, agenda, reservas com convidados, confirmação de presença, cancelamento, remarcação e fila de espera com oferta automática. A área de membros só verifica o acesso administrativo; a tabela e os formulários de membros ainda não estão implementados.
+Interface em React, TypeScript, Vite e CSS puro, com login, navegação, início, dados da conta e reservas de quadras completas: cadastro de quadras e manutenção, agenda, reservas com convidados, confirmação de presença, cancelamento, remarcação e fila de espera com oferta automática. A área de membros (administração) lista os membros com busca por nome ou e-mail, filtro por situação e paginação de 10 em 10, e permite cadastrar, editar e excluir.
 
 ## Telas de reservas
 
