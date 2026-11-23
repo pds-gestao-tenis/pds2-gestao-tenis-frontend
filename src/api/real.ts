@@ -1,7 +1,11 @@
 import { BOOKING_MINUTES, toBooking, toWaitlistEntry, type ApiBooking } from './booking-adapter';
 import { ApiError } from './error';
 import { pathId, request } from './http';
-import type { ApiServices, Court, CourtInput, Member, Player, Schedule, User } from './types';
+import { CLUB_UTC_OFFSET } from '../lib/club-time';
+import type {
+  ApiServices, Court, CourtInput, Fee, FeeList, Member, MyFees, OccupancyReport, Partner, PendingMember, Player,
+  PlayerProfile, Schedule, User,
+} from './types';
 
 const NO_OFFERS = 'A fila de espera confirma a reserva automaticamente quando o horário libera.';
 
@@ -85,6 +89,7 @@ export const realApi: ApiServices = {
   deleteCourt: (token, id) => request<void>(`/courts/${pathId(id)}`, send('DELETE', token)),
   async addMaintenance(token, courtId, input) {
     const body = { starts_at: input.starts_at, ends_at: input.ends_at, reason: input.reason,
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
       ...(input.cancel_bookings !== undefined ? { cancel_bookings: input.cancel_bookings } : {}) };
     return unwrap<Court>(`/courts/${pathId(courtId)}/maintenance`, json('POST', body, token));
   },
@@ -130,4 +135,55 @@ export const realApi: ApiServices = {
   // Sem ofertas no backend: a fila confirma sozinha. Respondem como oferta encerrada (409).
   acceptOffer: async () => { throw new ApiError(NO_OFFERS, 409); },
   declineOffer: async () => { throw new ApiError(NO_OFFERS, 409); },
+
+  // ---------- Taxas (US19-US22) ----------
+  myFees: (token) => request<MyFees>('/fees/mine', send('GET', token)),
+  payMyFee: (token, id, method) => unwrap<Fee>(`/fees/mine/${pathId(id)}/pay`, json('POST', { method }, token)),
+  listFees(token, query = {}) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined && value !== false) params.set(key, String(value));
+    }
+    return request<FeeList>(`/fees${params.size ? `?${params}` : ''}`, send('GET', token));
+  },
+  createFee: (token, input) => unwrap<Fee>('/fees', json('POST', {
+    member_id: input.member_id, description: input.description, amount: input.amount, due_date: input.due_date,
+  }, token)),
+  registerPayment: (token, id, method) => unwrap<Fee>(`/fees/${pathId(id)}/payment`, json('POST', { method }, token)),
+  deleteFee: (token, id) => request(`/fees/${pathId(id)}`, send('DELETE', token)),
+  pendingMembers: (token) => unwrap<PendingMember[]>('/fees/pending-members', send('GET', token)),
+
+  // ---------- Perfil de jogo e parceiros (US23-US25) ----------
+  getPlayerProfile: (token) => unwrap<PlayerProfile>('/players/me/profile', send('GET', token)),
+  savePlayerProfile: (token, profile) => unwrap<PlayerProfile>('/players/me/profile', json('PUT', {
+    skill_level: profile.skill_level,
+    availability: profile.availability.map(({ weekday, period }) => ({ weekday, period })),
+  }, token)),
+  listPartners: (token) => unwrap<Partner[]>('/players/partners', send('GET', token)),
+  // Convidar = incluir o jogador na lista da reserva; o backend manda o convite por e-mail.
+  async invitePlayer(token, bookingId, playerId) {
+    const current = await unwrap<ApiBooking>(`/bookings/${pathId(bookingId)}`, send('GET', token));
+    if (current.players.some((player) => player.id === playerId)) {
+      throw new ApiError('Esse jogador já está nesta reserva.', 409);
+    }
+    const player_ids = [...current.players.map((player) => player.id), playerId];
+    return toBooking(await unwrap<ApiBooking>(`/bookings/${pathId(bookingId)}`, json('PATCH', { player_ids }, token)), Date.now());
+  },
+
+  // ---------- Administração da agenda (US26-US30) ----------
+  async listClubBookings(token, query) {
+    const filters: Record<string, string> = { scope: query.scope };
+    if (query.court_id) filters.court_id = String(query.court_id);
+    // Datas do clube (AAAA-MM-DD) viram o intervalo [início do dia, início do dia seguinte).
+    if (query.from) filters.starts_from = `${query.from}T00:00:00${CLUB_UTC_OFFSET}`;
+    if (query.to) {
+      const next = new Date(`${query.to}T00:00:00${CLUB_UTC_OFFSET}`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      filters.starts_to = next.toISOString();
+    }
+    const items = await allBookings(token, filters);
+    return items.map((item) => toBooking(item, Date.now()));
+  },
+  occupancyReport: (token, from, to) =>
+    unwrap<OccupancyReport>(`/reports/occupancy?${new URLSearchParams({ from, to })}`, send('GET', token)),
 };

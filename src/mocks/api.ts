@@ -3,6 +3,7 @@ import type { ApiServices, Member, MemberQuery } from '../api/types';
 import { bookingHandlers } from './bookings';
 import { courtHandlers } from './courts';
 import { scheduleHandlers } from './schedule';
+import { extraHandlers } from './extras';
 import { advanceOffers, waitlistHandlers } from './waitlist';
 import { createMockContext, type MockContext, type MockOptions } from './context';
 import { DEMO_PASSWORD } from './fixtures';
@@ -130,6 +131,7 @@ export function mockApiFor(ctx: MockContext): ApiServices {
     ...scheduleHandlers(ctx),
     ...bookingHandlers(ctx),
     ...waitlistHandlers(ctx),
+    ...extraHandlers(ctx),
   };
   // Como um job no servidor: antes de cada chamada autenticada, ofertas vencidas passam ao próximo da fila.
   const handlers = services as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>;

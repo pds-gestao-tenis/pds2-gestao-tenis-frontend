@@ -1,6 +1,6 @@
 import { ApiError } from '../api/error';
-import type { Attendance, Court, Member } from '../api/types';
-import { initialAccounts, initialClubData, initialMembers, MOCK_DATA_KEY, type MockAccount } from './fixtures';
+import type { Attendance, Court, Fee, Member, PlayerProfile } from '../api/types';
+import { initialAccounts, initialClubData, initialFees, initialMembers, initialProfiles, MOCK_DATA_KEY, type MockAccount } from './fixtures';
 
 export type MockSession = { token: string; userId: number; expiresAt: string };
 export type MockBooking = {
@@ -20,8 +20,13 @@ export type MockWaitlistEntry = {
   created_at: string;
   offer_expires_at: string | null;
 };
+/** Taxa guardada sem os campos derivados (membro e "atrasada"), que o simulador monta ao responder. */
+export type MockFee = Omit<Fee, 'member' | 'overdue'> & { member_id: number };
+export type MockProfile = PlayerProfile & { user_id: number };
 export type Database = {
   accounts: MockAccount[];
+  fees: MockFee[];
+  profiles: MockProfile[];
   members: Member[];
   sessions: MockSession[];
   courts: Court[];
@@ -47,7 +52,7 @@ export type MockContext = {
 function isDatabase(value: unknown): value is Database {
   const db = value as Partial<Database> | null;
   return !!db && typeof db === 'object' &&
-    [db.accounts, db.members, db.sessions, db.courts, db.bookings, db.waitlist].every(Array.isArray) &&
+    [db.accounts, db.members, db.sessions, db.courts, db.bookings, db.waitlist, db.fees, db.profiles].every(Array.isArray) &&
     [db.nextUserId, db.nextMemberId, db.nextId].every(Number.isInteger);
 }
 
@@ -65,6 +70,8 @@ export function createMockContext({ delayMs = 450, scenario = 'success', storage
     db: loadDatabase(storage) ?? {
       accounts: initialAccounts(),
       members: scenario === 'empty' ? [] : initialMembers(),
+      fees: scenario === 'empty' ? [] : initialFees(now()),
+      profiles: initialProfiles(),
       sessions: [],
       ...initialClubData(now()),
       nextUserId: 6,
