@@ -1,6 +1,6 @@
 export type Route =
   | 'home' | 'account' | 'members' | 'courts' | 'schedule' | 'reschedule'
-  | 'bookings' | 'booking' | 'login' | 'register' | 'not-found';
+  | 'bookings' | 'booking' | 'notifications' | 'fees' | 'finance' | 'partners' | 'club-bookings' | 'occupancy' | 'login' | 'register' | 'not-found';
 
 export const routePaths = {
   home: '#/inicio',
@@ -9,6 +9,12 @@ export const routePaths = {
   courts: '#/quadras',
   schedule: '#/agenda',
   bookings: '#/reservas',
+  notifications: '#/notificacoes',
+  fees: '#/taxas',
+  finance: '#/financeiro',
+  partners: '#/parceiros',
+  'club-bookings': '#/admin/reservas',
+  occupancy: '#/admin/ocupacao',
   login: '#/entrar',
   register: '#/criar-conta',
 } as const;
@@ -37,6 +43,7 @@ export function routeId(hash: string): number | null {
 export function resolveRoute(hash: string): Route {
   const path = normalize(hash);
   if (!path || path === '#') return 'home';
+  if (path === '#/cadastro') return 'register';
   for (const [route, value] of Object.entries(routePaths)) {
     if (path === value) return route as Route;
   }

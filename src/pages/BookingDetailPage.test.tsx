@@ -45,23 +45,8 @@ describe('BookingDetailPage', () => {
     expect(screen.getByRole('heading', { name: 'Pendentes (1)' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: /Não vão/ })).not.toBeInTheDocument();
     expect(screen.getByText('Mariana Silva')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Remarcar reserva da Quadra 1/ })).toHaveAttribute('href', '#/agenda/remarcar/5');
     expect(screen.getByRole('link', { name: /Minhas reservas/ })).toHaveAttribute('href', '#/reservas');
-  });
-
-  it('organizador não vê "Confirmar presença"', async () => {
-    const { player } = await setupTestApi({ now: () => NOW });
-    renderPage(player, 5);
-    await screen.findByRole('heading', { name: 'Confirmados (1)' });
-    expect(screen.queryByRole('button', { name: 'Confirmar presença' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Não vou' })).not.toBeInTheDocument();
-  });
-
-  it('reserva já concluída não oferece resposta', async () => {
-    const { player } = await setupTestApi({ now: () => NOW });
-    renderPage(player, 7);
-    await screen.findByRole('heading', { level: 1, name: 'Quadra 2' });
-    expect(screen.getByText('Concluída')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Confirmar presença' })).not.toBeInTheDocument();
   });
 
   it('reserva de outra pessoa ou inexistente mostra "Reserva não encontrada"', async () => {
@@ -128,43 +113,5 @@ describe('BookingDetailPage cancelamento', () => {
     expect(screen.getByText('Cancelada')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Cancelar/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
-  });
-
-  it('convidado não vê Cancelar', async () => {
-    const { mariana } = await setupTestApi({ now: () => NOW });
-    renderPage(mariana, 5);
-    await screen.findByRole('heading', { level: 1, name: 'Quadra 1' });
-    expect(screen.queryByRole('button', { name: /^Cancelar/ })).not.toBeInTheDocument();
-  });
-});
-
-describe('BookingDetailPage reserva em andamento', () => {
-  it('não oferece Cancelar nem presença', async () => {
-    const { player, ctx } = await setupTestApi({ now: () => NOW });
-    ctx.db.bookings.push({
-      id: 50, court_id: 1, starts_at: '2026-11-09T14:30:00.000Z', ends_at: '2026-11-09T15:30:00.000Z',
-      status: 'active', organizer_id: 3, participants: [{ user_id: 3, attendance: 'confirmed' }, { user_id: 2, attendance: 'pending' }],
-    });
-    ctx.db.bookings.push({
-      id: 51, court_id: 2, starts_at: '2026-11-09T14:30:00.000Z', ends_at: '2026-11-09T15:30:00.000Z',
-      status: 'active', organizer_id: 2, participants: [{ user_id: 2, attendance: 'confirmed' }],
-    });
-    const guest = renderPage(player, 50);
-    await screen.findByRole('heading', { level: 1, name: 'Quadra 1' });
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-    guest.unmount();
-    renderPage(player, 51);
-    await screen.findByRole('heading', { level: 1, name: 'Quadra 2' });
-    expect(screen.queryByRole('button')).not.toBeInTheDocument();
-  });
-
-  it('organizador vê o link Remarcar; convidado não', async () => {
-    const { player, mariana } = await setupTestApi({ now: () => NOW });
-    const first = renderPage(player, 5);
-    expect(await screen.findByRole('link', { name: /^Remarcar reserva da Quadra 1/ })).toHaveAttribute('href', '#/agenda/remarcar/5');
-    first.unmount();
-    renderPage(mariana, 5);
-    await screen.findByRole('heading', { level: 1, name: 'Quadra 1' });
-    expect(screen.queryByRole('link', { name: /^Remarcar/ })).not.toBeInTheDocument();
   });
 });

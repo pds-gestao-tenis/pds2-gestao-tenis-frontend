@@ -2,6 +2,7 @@ import { ApiError } from '../api/error';
 import type { ApiServices, Court, CourtInput, MaintenanceInput } from '../api/types';
 import { courtErrors } from '../lib/court-rules';
 import type { MockContext } from './context';
+import { notifyBooking } from './notifications';
 
 const KEYS = ['name', 'address', 'size_m2', 'max_players', 'hourly_price', 'surface', 'covered'];
 const MAINTENANCE_KEYS = ['starts_at', 'ends_at', 'reason', 'cancel_bookings'];
@@ -118,7 +119,10 @@ export function courtHandlers(ctx: MockContext): Pick<ApiServices, CourtServices
         const message = `Há ${affected.length} reserva(s) nesse período.`;
         throw new ApiError(message, 409, { cancel_bookings: [message] });
       }
-      for (const booking of affected) booking.status = 'cancelled';
+      for (const booking of affected) {
+        booking.status = 'cancelled';
+        notifyBooking(ctx, booking, 'booking_cancelled');
+      }
       ctx.db.waitlist = ctx.db.waitlist.filter((entry) => !(entry.court_id === court.id
         && start < Date.parse(entry.starts_at) + HOUR && Date.parse(entry.starts_at) < end));
       court.maintenance.push({

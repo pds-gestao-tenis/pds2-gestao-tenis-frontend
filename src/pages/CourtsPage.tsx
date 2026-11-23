@@ -192,7 +192,7 @@ export function CourtsPage({ session, access, now, onRetry, onExpired }: Props) 
       <div className="page-heading">
         <p className="eyebrow">Administração</p>
         <h1>Quadras</h1>
-        <p>Cadastre e organize as quadras do clube: endereço, capacidade, preço da hora e manutenções.</p>
+        <p>Cadastre as quadras com endereço, capacidade e preço da hora. Use “Marcar manutenção” para bloquear horários de eventos ou manutenção.</p>
       </div>
       {content}
       <a className="text-link" href={routePaths.home}>Voltar ao início <span aria-hidden="true">→</span></a>
