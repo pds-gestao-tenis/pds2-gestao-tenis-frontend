@@ -14,14 +14,20 @@ import { navigate, type Route } from './navigation';
 import { AccountPage } from './pages/AccountPage';
 import { BookingDetailPage } from './pages/BookingDetailPage';
 import { BookingsPage } from './pages/BookingsPage';
+import { ClubBookingsPage } from './pages/ClubBookingsPage';
 import { CourtsPage } from './pages/CourtsPage';
+import { FeesPage } from './pages/FeesPage';
 import { HomePage } from './pages/HomePage';
 import { MembersPage } from './pages/MembersPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { PartnersPage } from './pages/PartnersPage';
+import { PaymentsPage } from './pages/PaymentsPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { SchedulePage } from './pages/SchedulePage';
 import './styles/app.css';
 import './styles/booking.css';
 import './styles/members.css';
+import './styles/club.css';
 
 const backdrop = <CourtBackdrop />;
 const intro = (
@@ -37,7 +43,8 @@ const mockNotice = import.meta.env.DEV && USE_MOCK_API ? <MockNotice /> : undefi
 const TITLES: Record<Route, string> = {
   home: 'Início', account: 'Minha conta', members: 'Membros',
   courts: 'Quadras', schedule: 'Agenda', reschedule: 'Remarcar', bookings: 'Minhas reservas',
-  booking: 'Reserva', login: 'Entrar', register: 'Criar conta', 'not-found': 'Página não encontrada',
+  booking: 'Reserva', fees: 'Minhas taxas', partners: 'Parceiros', payments: 'Pagamentos',
+  'club-bookings': 'Reservas do clube', reports: 'Indicadores', login: 'Entrar', register: 'Criar conta', 'not-found': 'Página não encontrada',
 };
 
 function ClubApp({ session, route, id, onLogout, onExpired }: {
@@ -70,6 +77,21 @@ function ClubApp({ session, route, id, onLogout, onExpired }: {
       break;
     case 'booking':
       page = id === null ? <NotFoundPage /> : <BookingDetailPage key={id} id={id} session={session} onExpired={onExpired} />;
+      break;
+    case 'fees':
+      page = <FeesPage session={session} onExpired={onExpired} />;
+      break;
+    case 'partners':
+      page = <PartnersPage session={session} onExpired={onExpired} />;
+      break;
+    case 'payments':
+      page = <PaymentsPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
+      break;
+    case 'club-bookings':
+      page = <ClubBookingsPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
+      break;
+    case 'reports':
+      page = <ReportsPage session={session} access={access} onRetry={retry} onExpired={onExpired} />;
       break;
     case 'not-found':
       page = <NotFoundPage />;

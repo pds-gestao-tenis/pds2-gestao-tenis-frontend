@@ -70,7 +70,12 @@
   border-bottom: 1px solid var(--rule-soft);
   text-align: left;
   vertical-align: middle;
-  overflow-wrap: anywhere;
+  /* Só quebra palavras que não cabem de jeito nenhum (e-mails longos), sem estreitar as colunas. */
+  overflow-wrap: break-word;
+}
+
+.member-table thead th {
+  white-space: nowrap;
 }
 
 .member-table thead th {

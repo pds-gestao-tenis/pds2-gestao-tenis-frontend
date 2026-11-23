@@ -1,12 +1,12 @@
 import type { Court, Member, User } from '../api/types';
 import { clubDate, fromClubLocal } from '../lib/club-time';
-import type { MockBooking, MockWaitlistEntry } from './context';
+import type { MockBooking, MockFee, MockProfile, MockWaitlistEntry } from './context';
 
 export const DEMO_PASSWORD = 'SenhaSegura123';
 export const DEMO_ADMIN_EMAIL = 'admin@clube.example';
 export const DEMO_USER_EMAIL = 'usuario@clube.example';
-// v3: quadras com endereço, área, jogadores e preço. Dados salvos de versões antigas são descartados.
-export const MOCK_DATA_KEY = 'clube-tenis.mock-data.v3';
+// v4: taxas dos membros e perfis de jogo. Dados salvos de versões antigas são descartados.
+export const MOCK_DATA_KEY = 'clube-tenis.mock-data.v4';
 const created_at = '2026-01-01T12:00:00.000Z';
 
 // As permissões pertencem ao simulador; não fazem parte de UserResponse da API atual.
@@ -62,4 +62,28 @@ export function initialClubData(now: number): ClubData {
     waitlist: [],
     nextId: 8,
   };
+}
+
+/** Taxas de exemplo: Mariana tem uma atrasada e uma paga; Camila, uma pendente. */
+export function initialFees(now: number): MockFee[] {
+  const fee = (id: number, member_id: number, description: string, amount: number, dueOffset: number, paid = false): MockFee => ({
+    id, member_id, description, amount, due_date: clubDay(now, dueOffset), status: paid ? 'paid' : 'pending',
+    paid_at: paid ? new Date(now - 5 * 86400000).toISOString() : null,
+    payment_method: paid ? 'pix' : null, paid_via: paid ? 'admin' : null, created_at,
+  });
+  return [
+    fee(1, 1, 'Mensalidade do mês passado', 150, -10),
+    fee(2, 1, 'Inscrição no torneio interno', 80, -15, true),
+    fee(3, 1, 'Mensalidade', 150, 20),
+    fee(4, 3, 'Mensalidade', 150, 5),
+  ];
+}
+
+/** Perfis de jogo de exemplo (US23): Mariana, Pedro e Camila já informaram nível e horários. */
+export function initialProfiles(): MockProfile[] {
+  return [
+    { user_id: 3, skill_level: 'intermediate', availability: [{ weekday: 1, period: 'evening' }, { weekday: 3, period: 'evening' }] },
+    { user_id: 4, skill_level: 'advanced', availability: [{ weekday: 1, period: 'evening' }, { weekday: 5, period: 'morning' }] },
+    { user_id: 5, skill_level: 'beginner', availability: [{ weekday: 5, period: 'morning' }] },
+  ];
 }

@@ -49,7 +49,7 @@ export function CourtCard({ court, now, removing, onRemoveMaintenance, children 
       <div className="court-card-head">
         <h3>{court.name}</h3>
         {inMaintenance
-          ? <span className="badge">Em manutenção</span>
+          ? <span className="badge">{current?.kind === 'event' ? 'Em evento' : 'Em manutenção'}</span>
           : <span className="badge badge--active">Disponível</span>}
       </div>
       <p className="court-card-meta">
@@ -62,13 +62,17 @@ export function CourtCard({ court, now, removing, onRemoveMaintenance, children 
         <div><dt>Jogadores</dt><dd>até {court.max_players}</dd></div>
         <div><dt>Área</dt><dd>{formatArea(court.size_m2)}</dd></div>
       </dl>
-      {current && <p className="court-card-meta">Em manutenção até {formatClubDateTime(current.ends_at)}</p>}
+      {current && (
+        <p className="court-card-meta">
+          {current.kind === 'event' ? 'Em evento' : 'Em manutenção'} até {formatClubDateTime(current.ends_at)}
+        </p>
+      )}
       {upcoming.length > 0 && (
         <ul className="maintenance-list">
           {upcoming.map((item) => (
             <li key={item.id}>
               <span>{formatClubDateTime(item.starts_at)} – {formatClubDateTime(item.ends_at)}</span>
-              <span>{item.reason}</span>
+              <span>{item.kind === 'event' ? `Evento: ${item.reason}` : item.reason}</span>
               {onRemoveMaintenance && (
                 <button
                   type="button" className="button button--secondary" disabled={removing}

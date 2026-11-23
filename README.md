@@ -16,6 +16,24 @@ Quando uma vaga abre, a primeira pessoa da fila recebe uma oferta com prazo para
 
 Na agenda de hoje, horários livres que já começaram aparecem como "encerrado" e não abrem o formulário de reserva nem de remarcação. Esse estado existe só na tela: a API continua mandando `free`, e o servidor recusa reservar no passado.
 
+## Taxas, parceiros e administração
+
+| Rota | Tela | Quem acessa |
+|---|---|---|
+| `#/taxas` | Minhas taxas: totais a pagar, atrasadas e pagas; pagar por Pix ou cartão (US20, US22) | Todas as contas |
+| `#/parceiros` | Perfil de jogo (nível e dias/períodos em que joga), parceiros sugeridos e convite para uma reserva própria (US23-US25) | Todas as contas |
+| `#/pagamentos` | Pendências por membro, taxas com registro de pagamento e exclusão, lançamento de taxa (US19, US21) | Administração |
+| `#/reservas-do-clube` | Agenda centralizada e histórico de todas as reservas, com filtros, cancelamento e remarcação (US26, US27, US29) | Administração |
+| `#/indicadores` | Ocupação por quadra, dia da semana e horário em um período (US30) | Administração |
+
+Em Quadras, o bloqueio de horário tem tipo: manutenção ou evento do clube (US28).
+
+As taxas de uma conta são as do cadastro de membro com o mesmo e-mail. O pagamento pelo sistema
+ainda não usa um provedor de pagamentos: a API aprova na hora e registra como pagamento online.
+
+No simulador, Mariana (`mariana@clube.example`) tem taxas (uma atrasada) e perfil de jogo, assim
+como Pedro e Camila; `usuario@clube.example` começa sem perfil, para testar o cadastro do nível.
+
 ## Executar sem backend
 
 Com Node.js instalado:

@@ -25,7 +25,9 @@ export type MemberList = {
 };
 
 export type Surface = 'clay' | 'hard' | 'grass' | 'synthetic';
-export type MaintenanceWindow = { id: number; starts_at: string; ends_at: string; reason: string };
+/** US28: bloqueio por manutenção ou por evento do clube. */
+export type BlockKind = 'maintenance' | 'event';
+export type MaintenanceWindow = { id: number; starts_at: string; ends_at: string; reason: string; kind?: BlockKind };
 export type Court = {
   id: number;
   name: string;
@@ -41,7 +43,7 @@ export type Court = {
   maintenance: MaintenanceWindow[];
 };
 export type CourtInput = Omit<Court, 'id' | 'maintenance'>;
-export type MaintenanceInput = { starts_at: string; ends_at: string; reason: string; cancel_bookings?: boolean };
+export type MaintenanceInput = { starts_at: string; ends_at: string; reason: string; kind?: BlockKind; cancel_bookings?: boolean };
 export type Player = { id: number; name: string };
 export type SlotStatus = 'free' | 'booked' | 'mine' | 'maintenance';
 export type Slot = {
@@ -77,6 +79,57 @@ export type WaitlistEntry = {
   offer: { expires_at: string } | null;
 };
 
+// ---------- Taxas e pagamentos (US19-US22) ----------
+export type FeeStatus = 'pending' | 'paid';
+export type PaymentMethod = 'cash' | 'pix' | 'card' | 'transfer';
+export type Fee = {
+  id: number;
+  member: { id: number; name: string; email: string };
+  description: string;
+  amount: number;
+  due_date: string;
+  status: FeeStatus;
+  overdue: boolean;
+  paid_at: string | null;
+  payment_method: PaymentMethod | null;
+  paid_via: 'admin' | 'online' | null;
+  created_at: string;
+};
+export type FeeInput = { member_id: number; description: string; amount: number; due_date: string };
+export type FeeQuery = { page?: number; page_size?: number; member_id?: number; status?: FeeStatus; overdue?: boolean };
+export type FeeList = { data: Fee[]; meta: MemberList['meta'] };
+export type MyFees = {
+  member: { id: number; name: string; email: string } | null;
+  data: Fee[];
+  summary: { pending_total: number; paid_total: number; overdue_count: number };
+};
+export type PendingMember = {
+  member: { id: number; name: string; email: string };
+  pending_count: number;
+  pending_total: number;
+  overdue_count: number;
+  oldest_due_date: string;
+};
+
+// ---------- Perfil de jogo e parceiros (US23-US25) ----------
+export type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'competitive';
+export type DayPeriod = 'morning' | 'afternoon' | 'evening';
+/** weekday: 0 = segunda-feira ... 6 = domingo. */
+export type AvailabilitySlot = { weekday: number; period: DayPeriod };
+export type PlayerProfile = { skill_level: SkillLevel | null; availability: AvailabilitySlot[] };
+export type Partner = { id: number; name: string; skill_level: SkillLevel; shared_availability: AvailabilitySlot[] };
+
+// ---------- Administração da agenda (US26-US30) ----------
+export type ClubBookingQuery = { scope: 'upcoming' | 'past'; court_id?: number; from?: string; to?: string };
+export type Usage = { booked_hours: number; available_hours: number; occupancy_rate: number };
+export type OccupancyReport = {
+  period: { from: string; to: string; days: number };
+  totals: Usage & { bookings: number; cancelled: number };
+  courts: (Usage & { court: { id: number; name: string }; blocked_hours: number; bookings: number })[];
+  by_weekday: (Usage & { weekday: number })[];
+  by_hour: (Usage & { hour: number })[];
+};
+
 /** Contrato único usado tanto pela API HTTP quanto pelo simulador. */
 export interface ApiServices {
   login(email: string, password: string): Promise<Session>;
@@ -108,4 +161,20 @@ export interface ApiServices {
   leaveWaitlist(token: string, id: number): Promise<void>;
   acceptOffer(token: string, id: number): Promise<Booking>;
   declineOffer(token: string, id: number): Promise<void>;
+  // US19-US22
+  myFees(token: string): Promise<MyFees>;
+  payMyFee(token: string, id: number, method: 'pix' | 'card'): Promise<Fee>;
+  listFees(token: string, query?: FeeQuery): Promise<FeeList>;
+  createFee(token: string, input: FeeInput): Promise<Fee>;
+  registerPayment(token: string, id: number, method: PaymentMethod): Promise<Fee>;
+  deleteFee(token: string, id: number): Promise<void>;
+  pendingMembers(token: string): Promise<PendingMember[]>;
+  // US23-US25
+  getPlayerProfile(token: string): Promise<PlayerProfile>;
+  savePlayerProfile(token: string, profile: PlayerProfile): Promise<PlayerProfile>;
+  listPartners(token: string): Promise<Partner[]>;
+  invitePlayer(token: string, bookingId: number, playerId: number): Promise<Booking>;
+  // US26-US30
+  listClubBookings(token: string, query: ClubBookingQuery): Promise<Booking[]>;
+  occupancyReport(token: string, from: string, to: string): Promise<OccupancyReport>;
 }

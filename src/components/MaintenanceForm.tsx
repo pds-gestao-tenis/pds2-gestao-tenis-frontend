@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, useTransition, type FormEvent } from 'react';
 import { addMaintenance } from '../api/courts';
 import { ApiError, errorMessage, isExpired } from '../api/error';
-import type { Court, MaintenanceInput } from '../api/types';
+import type { Court, MaintenanceInput, BlockKind } from '../api/types';
 import { fromClubLocal } from '../lib/club-time';
 
 type Props = {
@@ -28,6 +28,8 @@ export function MaintenanceForm({ court, token, onSaved, onCancel, onExpired }: 
   const [formError, setFormError] = useState('');
   const [conflict, setConflict] = useState(false);
   const [cancelBookings, setCancelBookings] = useState(false);
+  // US28: o bloqueio pode ser manutenção ou evento do clube (torneio, aula, festa).
+  const [kind, setKind] = useState<BlockKind>('maintenance');
   const [submitting, startSubmit] = useTransition();
 
   useEffect(() => startRef.current?.focus(), []);
@@ -57,6 +59,7 @@ export function MaintenanceForm({ court, token, onSaved, onCancel, onExpired }: 
       starts_at: fromClubLocal(values.starts_at),
       ends_at: fromClubLocal(values.ends_at),
       reason,
+      kind,
     };
     if (conflict && cancelBookings) input.cancel_bookings = true;
     sending.current = true;
@@ -114,6 +117,13 @@ export function MaintenanceForm({ court, token, onSaved, onCancel, onExpired }: 
       {formError && <p className="alert" role="alert">{formError}</p>}
       {field('starts_at', 'Início', 'datetime-local')}
       {field('ends_at', 'Fim', 'datetime-local')}
+      <div className="field">
+        <label htmlFor={`${id}-kind`}>Tipo de bloqueio</label>
+        <select id={`${id}-kind`} name="kind" value={kind} onChange={(event) => setKind(event.target.value as BlockKind)}>
+          <option value="maintenance">Manutenção</option>
+          <option value="event">Evento do clube</option>
+        </select>
+      </div>
       {field('reason', 'Motivo', 'text')}
       {conflict && (
         <div className="field field--check">

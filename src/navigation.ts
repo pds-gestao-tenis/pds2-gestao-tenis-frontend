@@ -1,6 +1,7 @@
 export type Route =
   | 'home' | 'account' | 'members' | 'courts' | 'schedule' | 'reschedule'
-  | 'bookings' | 'booking' | 'login' | 'register' | 'not-found';
+  | 'bookings' | 'booking' | 'fees' | 'partners' | 'payments' | 'club-bookings' | 'reports'
+  | 'login' | 'register' | 'not-found';
 
 export const routePaths = {
   home: '#/inicio',
@@ -9,6 +10,11 @@ export const routePaths = {
   courts: '#/quadras',
   schedule: '#/agenda',
   bookings: '#/reservas',
+  fees: '#/taxas',
+  partners: '#/parceiros',
+  payments: '#/pagamentos',
+  'club-bookings': '#/reservas-do-clube',
+  reports: '#/indicadores',
   login: '#/entrar',
   register: '#/criar-conta',
 } as const;

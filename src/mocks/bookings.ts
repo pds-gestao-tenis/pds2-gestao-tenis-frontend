@@ -97,10 +97,11 @@ export function bookingHandlers(ctx: MockContext): Pick<ApiServices, 'searchPlay
     },
     async getBooking(token, id) {
       await ctx.wait();
-      const viewer = ctx.authenticate(token).user;
+      const account = ctx.authenticate(token);
+      const viewer = account.user;
       const found = Number.isSafeInteger(id) ? ctx.db.bookings.find((item) => item.id === id) : undefined;
-      // Mesma resposta para inexistente, inválida e de outra pessoa.
-      if (!found || !isMine(found, viewer.id)) throw new ApiError('Reserva não encontrada.', 404);
+      // Mesma resposta para inexistente, inválida e de outra pessoa (admin vê todas, como no backend).
+      if (!found || (!account.admin && !isMine(found, viewer.id))) throw new ApiError('Reserva não encontrada.', 404);
       return withStatus(ctx, found, viewer.id);
     },
     async respondAttendance(token, id, response) {
@@ -120,10 +121,12 @@ export function bookingHandlers(ctx: MockContext): Pick<ApiServices, 'searchPlay
     },
     async cancelBooking(token, id) {
       await ctx.wait();
-      const viewer = ctx.authenticate(token).user;
+      const account = ctx.authenticate(token);
+      const viewer = account.user;
       const found = Number.isSafeInteger(id) ? ctx.db.bookings.find((item) => item.id === id) : undefined;
-      if (!found || !isMine(found, viewer.id)) throw new ApiError('Reserva não encontrada.', 404);
-      if (found.organizer_id !== viewer.id) throw new ApiError('Só quem organiza pode cancelar a reserva.', 403);
+      if (!found || (!account.admin && !isMine(found, viewer.id))) throw new ApiError('Reserva não encontrada.', 404);
+      // US27: a administração também pode cancelar.
+      if (found.organizer_id !== viewer.id && !account.admin) throw new ApiError('Só quem organiza pode cancelar a reserva.', 403);
       if (found.status !== 'active' || Date.parse(found.starts_at) <= ctx.now()) {
         throw new ApiError('Essa reserva já começou ou foi cancelada.', 422);
       }
@@ -134,10 +137,12 @@ export function bookingHandlers(ctx: MockContext): Pick<ApiServices, 'searchPlay
     },
     async rescheduleBooking(token, id, input) {
       await ctx.wait();
-      const viewer = ctx.authenticate(token).user;
+      const account = ctx.authenticate(token);
+      const viewer = account.user;
       const found = Number.isSafeInteger(id) ? ctx.db.bookings.find((item) => item.id === id) : undefined;
-      if (!found || !isMine(found, viewer.id)) throw new ApiError('Reserva não encontrada.', 404);
-      if (found.organizer_id !== viewer.id) throw new ApiError('Só quem organiza pode remarcar a reserva.', 403);
+      if (!found || (!account.admin && !isMine(found, viewer.id))) throw new ApiError('Reserva não encontrada.', 404);
+      // US27: a administração também pode remarcar.
+      if (found.organizer_id !== viewer.id && !account.admin) throw new ApiError('Só quem organiza pode remarcar a reserva.', 403);
       if (found.status !== 'active' || Date.parse(found.starts_at) <= ctx.now()) {
         throw new ApiError('Essa reserva já começou ou foi cancelada.', 422);
       }

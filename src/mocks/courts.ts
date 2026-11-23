@@ -4,7 +4,7 @@ import { courtErrors } from '../lib/court-rules';
 import type { MockContext } from './context';
 
 const KEYS = ['name', 'address', 'size_m2', 'max_players', 'hourly_price', 'surface', 'covered'];
-const MAINTENANCE_KEYS = ['starts_at', 'ends_at', 'reason', 'cancel_bookings'];
+const MAINTENANCE_KEYS = ['starts_at', 'ends_at', 'reason', 'kind', 'cancel_bookings'];
 const HOUR = 3600000;
 
 function invalid(field: string, message: string): never {
@@ -109,6 +109,9 @@ export function courtHandlers(ctx: MockContext): Pick<ApiServices, CourtServices
       if (input.cancel_bookings !== undefined && typeof input.cancel_bookings !== 'boolean') {
         invalid('cancel_bookings', 'Valor inválido.');
       }
+      if (input.kind !== undefined && input.kind !== 'maintenance' && input.kind !== 'event') {
+        invalid('kind', 'Use maintenance ou event.');
+      }
       const court = findCourt(id);
       // Sobreposição: início < fim do outro e início do outro < fim. Só reservas que ainda não começaram.
       const now = ctx.now();
@@ -126,6 +129,7 @@ export function courtHandlers(ctx: MockContext): Pick<ApiServices, CourtServices
         starts_at: new Date(start).toISOString(),
         ends_at: new Date(end).toISOString(),
         reason,
+        kind: input.kind ?? 'maintenance',
       });
       ctx.persist();
       return copy(court);

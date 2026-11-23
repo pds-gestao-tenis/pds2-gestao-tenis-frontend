@@ -20,9 +20,18 @@ const LINKS: NavLink[] = [
   { route: 'home', label: 'Início' },
   { route: 'schedule', label: 'Agenda' },
   { route: 'bookings', label: 'Minhas reservas' },
+  { route: 'partners', label: 'Parceiros' },
+  { route: 'fees', label: 'Minhas taxas' },
   { route: 'account', label: 'Minha conta' },
 ];
-const ADMIN_LINKS: NavLink[] = [...LINKS, { route: 'members', label: 'Membros' }, { route: 'courts', label: 'Quadras' }];
+const ADMIN_LINKS: NavLink[] = [
+  ...LINKS,
+  { route: 'members', label: 'Membros' },
+  { route: 'courts', label: 'Quadras' },
+  { route: 'club-bookings', label: 'Reservas do clube' },
+  { route: 'payments', label: 'Pagamentos' },
+  { route: 'reports', label: 'Indicadores' },
+];
 
 export function AppLayout({ session, route, access, onLogout, children, mockNotice }: Props) {
   const mainRef = useRef<HTMLElement>(null);
