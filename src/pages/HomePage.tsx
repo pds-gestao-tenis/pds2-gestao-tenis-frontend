@@ -1,6 +1,7 @@
 import type { Session } from '../api/types';
 import { AccessStatus } from '../components/AccessStatus';
 import { OfferBanners } from '../components/OfferBanner';
+import { PendingInvites } from '../components/PendingInvites';
 import type { MemberAccess } from '../hooks/useMemberAccess';
 import { routePaths } from '../navigation';
 
@@ -23,6 +24,7 @@ export function HomePage({ session, access, onRetry, onExpired }: Props) {
         <p>Bom ter você por aqui. O que vamos organizar hoje?</p>
       </div>
       <OfferBanners session={session} onExpired={onExpired} />
+      <PendingInvites session={session} onExpired={onExpired} />
       <section className="welcome-panel" aria-labelledby="welcome-title">
         <div>
           <p className="eyebrow">Dentro e fora de quadra</p>

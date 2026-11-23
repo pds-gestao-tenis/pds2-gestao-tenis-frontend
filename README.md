@@ -28,6 +28,9 @@ Na agenda de hoje, horários livres que já começaram aparecem como "encerrado"
 
 Em Quadras, o bloqueio de horário tem tipo: manutenção ou evento do clube (US28).
 
+O Início mostra os convites para partidas que a conta ainda não respondeu, com os botões "Confirmar
+presença" e "Não vou"; respondido, o convite sai do aviso.
+
 As taxas de uma conta são as do cadastro de membro com o mesmo e-mail. O pagamento pelo sistema
 ainda não usa um provedor de pagamentos: a API aprova na hora e registra como pagamento online.
 
